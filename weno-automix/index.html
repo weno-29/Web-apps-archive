@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weno AutoMix Engine</title>
+  <meta name="description" content="demo音源を参照して、各stemの役割・音量・EQ・コンプ・パンの推奨設定を自動生成するブラウザ完結型ツール">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%231c1b19%27/%3E%3Crect x=%276%27 y=%2716%27 width=%274%27 height=%2710%27 fill=%27%236c8cff%27/%3E%3Crect x=%2714%27 y=%276%27 width=%274%27 height=%2720%27 fill=%27%23f2a33a%27/%3E%3Crect x=%2722%27 y=%2712%27 width=%274%27 height=%2714%27 fill=%27%233fc9b0%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap">
+      <p class="eyebrow">Demo-Guided Auto Mix · v0.1</p>
+      <h1>Weno AutoMix <span>Engine</span></h1>
+      <p class="lede">完成イメージのdemoと各stemを読み込むと、トラックごとの役割・音量・EQ・コンプ・パンの<strong>推奨設定</strong>と、Logic Proで再現するためのメモを生成します。</p>
+      <p class="privacy">● 解析はすべてブラウザ内で行われ、音声ファイルはどこにも送信されません。</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- STEP 1: input -->
+    <section class="panel" id="input-panel">
+      <div class="panel-head">
+        <h2><span class="step">01</span>音源を読み込む</h2>
+        <button type="button" class="ghost" id="sample-btn">サンプル音源で試す</button>
+      </div>
+
+      <label class="field">
+        <span>プロジェクト名</span>
+        <input type="text" id="project-name" value="song_01" autocomplete="off" spellcheck="false">
+      </label>
+
+      <div class="drops">
+        <div class="drop" id="demo-drop" tabindex="0">
+          <input type="file" id="demo-input" accept="audio/*,.wav,.aif,.aiff,.flac" hidden>
+          <p class="drop-title">demo（参照音源）</p>
+          <p class="drop-hint">完成イメージの2mixを1本。<br>ドロップ or タップして選択</p>
+          <ul class="file-list" id="demo-list"></ul>
+        </div>
+        <div class="drop" id="stems-drop" tabindex="0">
+          <input type="file" id="stems-input" accept="audio/*,.wav,.aif,.aiff,.flac" multiple hidden>
+          <p class="drop-title">stems（個別トラック）</p>
+          <p class="drop-hint">複数選択可。ファイル名に楽器名<br>（vocal, bass, kick…）があると分類精度が上がります</p>
+          <ul class="file-list" id="stems-list"></ul>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="primary" id="analyze-btn" disabled>解析して推奨設定を作る</button>
+        <button type="button" class="ghost" id="clear-btn">クリア</button>
+      </div>
+      <div class="progress" id="progress" hidden>
+        <div class="bar"><i id="progress-bar"></i></div>
+        <p id="progress-text"></p>
+      </div>
+      <p class="error" id="error" hidden></p>
+    </section>
+
+    <!-- STEP 2: results -->
+    <section id="results" hidden>
+      <section class="panel" id="demo-panel">
+        <div class="panel-head"><h2><span class="step">02</span>demoの特徴</h2></div>
+        <div id="demo-body"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2><span class="step">03</span>トラック別の推奨設定</h2>
+          <p class="panel-note">役割は手動で変更でき、変更すると推奨値を再計算します。</p>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div class="tracks" id="tracks"></div>
+      </section>
+
+      <section class="panel" id="masking-panel">
+        <div class="panel-head">
+          <h2><span class="step">04</span>帯域がぶつかりやすい組み合わせ</h2>
+          <p class="panel-note">平均スペクトルのコサイン類似度。高いほどマスキングの可能性が高い目安です。</p>
+        </div>
+        <div id="masking"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2><span class="step">05</span>書き出し</h2>
+        </div>
+        <div class="downloads">
+          <button type="button" class="dl" data-file="analysis_report.json">analysis_report.json<small>全解析結果</small></button>
+          <button type="button" class="dl" data-file="mix_settings.json">mix_settings.json<small>ミックス推奨値</small></button>
+          <button type="button" class="dl" data-file="logic_notes.txt">logic_notes.txt<small>Logic Pro再現メモ</small></button>
+        </div>
+        <details class="notes">
+          <summary>logic_notes.txt をプレビュー</summary>
+          <pre id="notes-preview"></pre>
+        </details>
+      </section>
+    </section>
+
+    <footer class="foot">
+      <p>推奨値は出発点です。最終判断は必ずdemoと聴き比べて行ってください。</p>
+      <p>Weno AutoMix Engine v0.1 · <a href="https://github.com/weno-29/Web-apps-archive/tree/main/weno-automix">Source on GitHub</a></p>
+    </footer>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
