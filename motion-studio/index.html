@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motion Studio — 画像・動画からモーション映像を生成</title>
+<style>
+:root{
+  --bg:#0c0e13; --panel:#12151d; --panel2:#171b25; --line:#232838;
+  --text:#e8eaf2; --muted:#8b91a5; --vio:#7c6cff; --cyn:#4fd8ff;
+  --grad:linear-gradient(120deg,#7c6cff,#4fd8ff); --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:14px;min-height:100vh;
+}
+.num{font-variant-numeric:tabular-nums}
+header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.logo{width:30px;height:30px;border-radius:8px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:700;color:#0c0e13}
+header h1{font-size:16px;font-weight:700}
+header .sub{color:var(--muted);font-size:11px;margin-left:auto;text-align:right}
+.layout{display:grid;grid-template-columns:340px 1fr;min-height:calc(100vh - 59px)}
+@media(max-width:860px){
+  .layout{grid-template-columns:1fr}
+  .layout{display:flex;flex-direction:column-reverse}
+  .controls{border-right:none!important;border-top:1px solid var(--line)}
+}
+.controls{border-right:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:16px;background:var(--panel)}
+.block{display:flex;flex-direction:column;gap:8px}
+.label{font-size:11px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.drop{border:1.5px dashed var(--line);border-radius:var(--radius);padding:22px 14px;text-align:center;cursor:pointer;transition:.2s;color:var(--muted)}
+.drop:active,.drop.on{border-color:var(--vio);background:#7c6cff12;color:var(--text)}
+.drop b{color:var(--text)}
+textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);color:var(--text);padding:12px;font-family:inherit;font-size:13px;resize:vertical;min-height:70px}
+textarea:focus{outline:none;border-color:var(--vio)}
+.key{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:13px}
+.key:focus{outline:none;border-color:var(--vio)}
+.back{color:var(--muted);font-size:12px;text-decoration:none;margin-left:8px}
+.back:hover{color:var(--text)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.chip{padding:8px 13px;border:1px solid var(--line);border-radius:999px;background:var(--panel2);color:var(--muted);cursor:pointer;font-size:12px;transition:.15s;user-select:none}
+.chip.on{border-color:var(--vio);color:var(--text);background:#7c6cff22}
+select,input[type=range]{width:100%;accent-color:var(--vio)}
+select{background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:10px;font-family:inherit;font-size:13px}
+.btn{border:none;border-radius:var(--radius);padding:14px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;transition:transform .1s,opacity .2s}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--grad);color:#0c0e13}
+.btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+.btn:disabled{opacity:.4}
+.hint{font-size:11px;color:var(--muted);line-height:1.6}
+.stage{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:18px;gap:14px;background:radial-gradient(600px 400px at 50% 20%,#7c6cff0d,transparent)}
+.screen{width:100%;max-width:820px;aspect-ratio:16/9;background:#000;border-radius:var(--radius);border:1px solid var(--line);overflow:hidden;position:relative;box-shadow:0 30px 80px -30px #000}
+canvas{width:100%;height:100%;display:block}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--muted);cursor:pointer}
+.empty .big{font-size:38px;opacity:.5}
+.bar{width:100%;max-width:820px;display:flex;align-items:center;gap:12px}
+.play{width:46px;height:46px;border-radius:50%;background:var(--grad);border:none;cursor:pointer;font-size:16px;color:#0c0e13;flex-shrink:0}
+.track{flex:1;height:6px;background:var(--panel2);border-radius:3px;overflow:hidden}
+.track .fill{height:100%;width:0%;background:var(--grad)}
+.time{font-size:12px;color:var(--muted);min-width:78px;text-align:right}
+.status{font-size:12px;color:var(--muted);min-height:18px;text-align:center;max-width:820px;line-height:1.6;word-break:break-all}
+.status.ai{color:var(--cyn)}
+.status.err{color:#ff8080}
+.rec-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff5c5c;margin-right:6px;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.2}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">M</div>
+  <h1>Motion Studio</h1>
+  <a class="back" href="../">← アプリ一覧</a>
+  <span class="sub">画像・動画 → モーション映像<br>（ブラウザ完結）</span>
+</header>
+
+<div class="layout">
+  <aside class="controls">
+
+    <div class="block">
+      <span class="label">01 · 素材</span>
+      <div class="drop" id="drop">
+        <div><b>タップして画像 / 動画を選択</b></div>
+        <div style="font-size:11px;margin-top:6px">JPG · PNG · WebP · MP4 · MOV · WebM</div>
+      </div>
+      <input type="file" id="file" accept="image/*,video/*" style="display:none">
+      <div class="hint" id="fileInfo"></div>
+    </div>
+
+    <div class="block">
+      <span class="label">02 · プロンプト（AI解析）</span>
+      <textarea id="prompt" placeholder="例：夕暮れの街をゆっくりズームインしながら、映画のような色調で塵が舞う"></textarea>
+      <input type="password" id="apiKey" class="key" placeholder="Anthropic API キー（sk-ant-…）" autocomplete="off">
+      <button class="btn ghost" id="aiBtn">✦ AIにモーションを提案させる</button>
+      <div class="hint">Claude が素材とプロンプトを解析し、下の設定を自動調整します。API キーはこの端末のブラウザ内にのみ保存され、Anthropic 以外には送信されません。キーがなくても手動設定はすべて使えます。</div>
+    </div>
+
+    <div class="block">
+      <span class="label">03 · カメラモーション</span>
+      <div class="row" id="motionRow">
+        <span class="chip on" data-v="zoom-in">ズームイン</span>
+        <span class="chip" data-v="zoom-out">ズームアウト</span>
+        <span class="chip" data-v="pan-left">パン←</span>
+        <span class="chip" data-v="pan-right">パン→</span>
+        <span class="chip" data-v="tilt-up">ティルト↑</span>
+        <span class="chip" data-v="orbit">オービット</span>
+        <span class="chip" data-v="none">なし</span>
+      </div>
+      <span class="label" style="margin-top:6px">モーション強度</span>
+      <input type="range" id="intensity" min="1" max="10" value="4">
+    </div>
+
+    <div class="block">
+      <span class="label">04 · フィルター</span>
+      <div class="row" id="filterRow">
+        <span class="chip on" data-v="none">なし</span>
+        <span class="chip" data-v="cinematic">シネマ</span>
+        <span class="chip" data-v="warm">ウォーム</span>
+        <span class="chip" data-v="cool">クール</span>
+        <span class="chip" data-v="mono">モノクロ</span>
+        <span class="chip" data-v="vhs">VHS</span>
+        <span class="chip" data-v="dream">ドリーム</span>
+      </div>
+    </div>
+
+    <div class="block">
+      <span class="label">05 · パーティクル</span>
+      <div class="row" id="particleRow">
+        <span class="chip on" data-v="none">なし</span>
+        <span class="chip" data-v="dust">塵</span>
+        <span class="chip" data-v="snow">雪</span>
+        <span class="chip" data-v="rain">雨</span>
+        <span class="chip" data-v="bokeh">ボケ光</span>
+      </div>
+    </div>
+
+    <div class="block">
+      <span class="label">06 · 出力設定</span>
+      <div class="row" style="gap:10px">
+        <select id="duration" style="flex:1">
+          <option value="3">3 秒</option>
+          <option value="5" selected>5 秒</option>
+          <option value="8">8 秒</option>
+          <option value="12">12 秒</option>
+        </select>
+        <select id="res" style="flex:1">
+          <option value="1280" selected>720p</option>
+          <option value="1920">1080p</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn primary" id="exportBtn" disabled>⬇ 動画を書き出す</button>
+    <div class="hint" id="exportHint">書き出しはリアルタイム録画方式です。設定した秒数だけお待ちください。</div>
+  </aside>
+
+  <main class="stage">
+    <div class="screen">
+      <canvas id="cv" width="1280" height="720"></canvas>
+      <div class="empty" id="empty">
+        <div class="big">▣</div>
+        <div>タップして素材をアップロード</div>
+      </div>
+    </div>
+    <div class="bar">
+      <button class="play" id="playBtn">▶</button>
+      <div class="track"><div class="fill" id="fill"></div></div>
+      <div class="time num" id="timeLbl">0.0 / 5.0s</div>
+    </div>
+    <div class="status" id="status"></div>
+  </main>
+</div>
+
+<script>
+'use strict';
+/* ============ error surfacing ============ */
+const $ = function(id){ return document.getElementById(id); };
+function setStatus(html, cls){
+  const el = $('status');
+  el.className = 'status' + (cls ? ' ' + cls : '');
+  el.innerHTML = html;
+}
+window.onerror = function(msg, src, line){
+  setStatus('エラー: ' + msg + ' (line ' + line + ')', 'err');
+};
+
+/* ============ state ============ */
+const S = {
+  media: null, isVideo: false,
+  motion: 'zoom-in', filter: 'none', particles: 'none',
+  intensity: 4, duration: 5,
+  playing: false, t: 0, lastTs: 0, recording: false
+};
+const cv = $('cv');
+const ctx = cv.getContext('2d');
+const FILTER_SUPPORTED = (typeof ctx.filter === 'string'); // Safari旧版はundefined
+
+/* ============ upload (FileReader / dataURL方式) ============ */
+const fileInput = $('file');
+function openPicker(){ fileInput.click(); }
+$('drop').addEventListener('click', openPicker);
+$('empty').addEventListener('click', openPicker);
+$('drop').addEventListener('dragover', function(e){ e.preventDefault(); this.classList.add('on'); });
+$('drop').addEventListener('dragleave', function(){ this.classList.remove('on'); });
+$('drop').addEventListener('drop', function(e){
+  e.preventDefault(); this.classList.remove('on');
+  if(e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', function(e){
+  if(e.target.files.length) loadFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+function loadFile(f){
+  setStatus('読み込み中… (' + f.name + ')');
+  const reader = new FileReader();
+  reader.onerror = function(){ setStatus('ファイルの読み取りに失敗しました。', 'err'); };
+  reader.onload = function(){
+    const dataUrl = reader.result;
+    const isVideo = f.type.indexOf('video') === 0 ||
+                    /\.(mp4|mov|webm|m4v)$/i.test(f.name);
+    if(isVideo){
+      const v = document.createElement('video');
+      v.muted = true; v.loop = true; v.playsInline = true;
+      v.setAttribute('playsinline',''); v.setAttribute('muted','');
+      v.preload = 'auto';
+      let done = false;
+      function ready(){
+        if(done || !v.videoWidth) return;
+        done = true;
+        S.media = v; S.isVideo = true;
+        onMediaReady(f);
+      }
+      v.addEventListener('loadedmetadata', ready);
+      v.addEventListener('loadeddata', ready);
+      v.addEventListener('canplay', ready);
+      v.addEventListener('error', function(){
+        setStatus('この動画形式はお使いのブラウザで再生できません。MP4 (H.264) をお試しください。', 'err');
+      });
+      v.src = dataUrl;
+      v.load();
+    } else {
+      const img = new Image();
+      img.onload = function(){
+        S.media = img; S.isVideo = false;
+        onMediaReady(f);
+      };
+      img.onerror = function(){ setStatus('画像の読み込みに失敗しました。', 'err'); };
+      img.src = dataUrl;
+    }
+  };
+  reader.readAsDataURL(f);
+}
+
+function onMediaReady(f){
+  $('empty').style.display = 'none';
+  $('exportBtn').disabled = !window.MediaRecorder;
+  $('fileInfo').textContent = '読み込み済み：' + f.name + '（' + (f.size/1024/1024).toFixed(1) + ' MB）';
+  setStatus('プレビューを再生中です。');
+  S.t = 0;
+  play();
+  render();
+}
+
+/* ============ chips ============ */
+function bindChips(rowId, key){
+  $(rowId).querySelectorAll('.chip').forEach(function(c){
+    c.addEventListener('click', function(){
+      $(rowId).querySelectorAll('.chip').forEach(function(x){ x.classList.remove('on'); });
+      c.classList.add('on');
+      S[key] = c.dataset.v;
+      initParticles();
+      if(!S.playing) render();
+    });
+  });
+}
+bindChips('motionRow','motion');
+bindChips('filterRow','filter');
+bindChips('particleRow','particles');
+$('intensity').addEventListener('input', function(e){ S.intensity = +e.target.value; });
+$('duration').addEventListener('change', function(e){ S.duration = +e.target.value; updateTime(); });
+$('res').addEventListener('change', function(e){
+  const w = +e.target.value;
+  cv.width = w; cv.height = Math.round(w*9/16);
+  render();
+});
+function setChip(rowId, val){
+  const t = $(rowId).querySelector('[data-v="'+val+'"]');
+  if(!t) return;
+  $(rowId).querySelectorAll('.chip').forEach(function(x){ x.classList.remove('on'); });
+  t.classList.add('on');
+}
+
+/* ============ particles ============ */
+let parts = [];
+function initParticles(){
+  parts = [];
+  const n = ({dust:70, snow:120, rain:180, bokeh:26})[S.particles] || 0;
+  for(let i=0;i<n;i++){
+    parts.push({x:Math.random(), y:Math.random(), r:Math.random(),
+                s:Math.random()*0.6+0.4, p:Math.random()*Math.PI*2});
+  }
+}
+function drawParticles(){
+  const W=cv.width, H=cv.height;
+  ctx.save();
+  for(let i=0;i<parts.length;i++){
+    const p = parts[i];
+    if(S.particles==='dust'){
+      p.x += Math.sin(p.p + S.t*0.7)*0.0003; p.y -= 0.00025*p.s;
+      if(p.y<0) p.y=1;
+      ctx.globalAlpha = 0.25 + 0.2*Math.sin(S.t*2+p.p);
+      ctx.fillStyle='#fff';
+      ctx.beginPath(); ctx.arc(p.x*W,p.y*H,p.r*2.2+0.6,0,7); ctx.fill();
+    } else if(S.particles==='snow'){
+      p.y += 0.0011*p.s; p.x += Math.sin(S.t*1.5+p.p)*0.0006;
+      if(p.y>1) p.y=0;
+      ctx.globalAlpha=0.7; ctx.fillStyle='#fff';
+      ctx.beginPath(); ctx.arc(p.x*W,p.y*H,p.r*3+1,0,7); ctx.fill();
+    } else if(S.particles==='rain'){
+      p.y += 0.02*p.s; if(p.y>1){p.y=0;p.x=Math.random();}
+      ctx.globalAlpha=0.35; ctx.strokeStyle='#bcd8ff'; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(p.x*W,p.y*H);
+      ctx.lineTo(p.x*W-4,p.y*H+18*p.s); ctx.stroke();
+    } else if(S.particles==='bokeh'){
+      p.x += Math.sin(p.p+S.t*0.3)*0.0002; p.y += Math.cos(p.p+S.t*0.25)*0.0002;
+      const a = 0.12 + 0.1*Math.sin(S.t+p.p);
+      const g = ctx.createRadialGradient(p.x*W,p.y*H,0,p.x*W,p.y*H,p.r*60+20);
+      g.addColorStop(0,'rgba(255,235,200,'+a+')');
+      g.addColorStop(1,'rgba(255,235,200,0)');
+      ctx.fillStyle=g;
+      ctx.beginPath(); ctx.arc(p.x*W,p.y*H,p.r*60+20,0,7); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/* ============ filters ============ */
+const FILTERS = {
+  none:'', cinematic:'contrast(1.12) saturate(1.15) brightness(0.97)',
+  warm:'sepia(0.25) saturate(1.25) brightness(1.04)',
+  cool:'hue-rotate(-12deg) saturate(1.1) brightness(1.02) contrast(1.05)',
+  mono:'grayscale(1) contrast(1.15)',
+  vhs:'saturate(1.4) contrast(1.1)',
+  dream:'brightness(1.1) saturate(1.3)'
+};
+/* ctx.filter非対応環境（旧Safari等）用の合成モードフォールバック */
+function fallbackTint(W,H){
+  ctx.save();
+  if(S.filter==='mono'){
+    ctx.globalCompositeOperation='saturation';
+    ctx.fillStyle='#808080'; ctx.fillRect(0,0,W,H);
+  } else if(S.filter==='warm'){
+    ctx.globalCompositeOperation='overlay'; ctx.globalAlpha=0.25;
+    ctx.fillStyle='#ff9a3c'; ctx.fillRect(0,0,W,H);
+  } else if(S.filter==='cool'){
+    ctx.globalCompositeOperation='overlay'; ctx.globalAlpha=0.25;
+    ctx.fillStyle='#3c8cff'; ctx.fillRect(0,0,W,H);
+  } else if(S.filter==='cinematic'){
+    ctx.globalCompositeOperation='overlay'; ctx.globalAlpha=0.18;
+    ctx.fillStyle='#1a2a4a'; ctx.fillRect(0,0,W,H);
+  } else if(S.filter==='dream'){
+    ctx.globalCompositeOperation='screen'; ctx.globalAlpha=0.15;
+    ctx.fillStyle='#c8a8ff'; ctx.fillRect(0,0,W,H);
+  } else if(S.filter==='vhs'){
+    ctx.globalCompositeOperation='overlay'; ctx.globalAlpha=0.2;
+    ctx.fillStyle='#804060'; ctx.fillRect(0,0,W,H);
+  }
+  ctx.restore();
+}
+function postFilter(){
+  const W=cv.width,H=cv.height;
+  if(!FILTER_SUPPORTED) fallbackTint(W,H);
+  if(S.filter==='cinematic'||S.filter==='mono'){
+    const g = ctx.createRadialGradient(W/2,H/2,H*0.35,W/2,H/2,H*0.85);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.45)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#000';
+    ctx.fillRect(0,0,W,H*0.06); ctx.fillRect(0,H*0.94,W,H*0.06);
+  }
+  if(S.filter==='vhs'){
+    ctx.save(); ctx.globalAlpha=0.12; ctx.fillStyle='#000';
+    for(let y=0;y<H;y+=4) ctx.fillRect(0,y,W,2);
+    ctx.globalAlpha=0.05+0.04*Math.sin(S.t*30);
+    ctx.fillStyle='#f0f'; ctx.fillRect(2,0,W,H);
+    ctx.restore();
+  }
+  if(S.filter==='dream'){
+    const g = ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,H);
+    g.addColorStop(0,'rgba(255,220,255,0.08)');
+    g.addColorStop(1,'rgba(120,100,255,0.12)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  }
+}
+
+/* ============ render ============ */
+function ease(t){ return t<.5 ? 2*t*t : -1+(4-2*t)*t; }
+function render(){
+  const W=cv.width, H=cv.height, m=S.media;
+  ctx.setTransform(1,0,0,1,0,0);
+  if(FILTER_SUPPORTED) ctx.filter='none';
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  if(!m) return;
+
+  const mw = S.isVideo ? m.videoWidth : m.naturalWidth;
+  const mh = S.isVideo ? m.videoHeight : m.naturalHeight;
+  if(!mw||!mh) return;
+
+  const base = Math.max(W/mw, H/mh);
+  const p = Math.min(S.t/S.duration,1);
+  const e = ease(p);
+  const k = S.intensity/10;
+
+  let scale=base, dx=0, dy=0, rot=0;
+  switch(S.motion){
+    case 'zoom-in':  scale = base*(1 + 0.35*k*e); break;
+    case 'zoom-out': scale = base*(1 + 0.35*k*(1-e)); break;
+    case 'pan-left':  scale=base*(1+0.15*k); dx =  (e-0.5)*W*0.3*k; break;
+    case 'pan-right': scale=base*(1+0.15*k); dx = -(e-0.5)*W*0.3*k; break;
+    case 'tilt-up':   scale=base*(1+0.15*k); dy =  (e-0.5)*H*0.3*k; break;
+    case 'orbit':
+      rot = Math.sin(p*Math.PI*2)*0.02*k;
+      scale = base*(1+0.18*k + 0.06*k*Math.sin(p*Math.PI*2));
+      break;
+  }
+
+  ctx.save();
+  if(FILTER_SUPPORTED) ctx.filter = FILTERS[S.filter] || 'none';
+  ctx.translate(W/2+dx, H/2+dy);
+  ctx.rotate(rot);
+  try{ ctx.drawImage(m, -mw*scale/2, -mh*scale/2, mw*scale, mh*scale); }catch(err){}
+  ctx.restore();
+
+  postFilter();
+  drawParticles();
+}
+
+/* ============ playback loop ============ */
+function loop(ts){
+  if(S.playing){
+    if(!S.lastTs) S.lastTs = ts;
+    const dt = (ts - S.lastTs)/1000; S.lastTs = ts;
+    S.t += dt;
+    if(S.t >= S.duration){
+      if(S.recording){ S.t = S.duration; render(); stopRecording(); }
+      else S.t = 0;
+    }
+    render(); updateTime();
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+function updateTime(){
+  $('fill').style.width = Math.min(S.t/S.duration,1)*100 + '%';
+  $('timeLbl').textContent = S.t.toFixed(1) + ' / ' + S.duration.toFixed(1) + 's';
+}
+function play(){
+  if(!S.media) return;
+  S.playing = true; S.lastTs = 0;
+  if(S.isVideo){
+    const pr = S.media.play();
+    if(pr && pr.catch) pr.catch(function(){ /* 自動再生制限時もcanvas描画は継続 */ });
+  }
+  $('playBtn').textContent = '❚❚';
+}
+function pause(){
+  S.playing = false;
+  if(S.isVideo && S.media) S.media.pause();
+  $('playBtn').textContent = '▶';
+}
+$('playBtn').addEventListener('click', function(){ S.playing ? pause() : play(); });
+
+/* ============ export ============ */
+let recorder=null, chunks=[], exportMime='', exportExt='webm';
+(function(){
+  if(!window.MediaRecorder || !cv.captureStream){
+    $('exportHint').textContent = 'お使いのブラウザは録画（MediaRecorder）に非対応のため、書き出しは利用できません。プレビューは動作します。';
+    return;
+  }
+  const candidates = [
+    ['video/webm;codecs=vp9','webm'],
+    ['video/webm','webm'],
+    ['video/mp4','mp4']   // Safari系
+  ];
+  for(let i=0;i<candidates.length;i++){
+    if(MediaRecorder.isTypeSupported(candidates[i][0])){
+      exportMime = candidates[i][0]; exportExt = candidates[i][1]; break;
+    }
+  }
+})();
+
+$('exportBtn').addEventListener('click', function(){
+  if(!S.media || S.recording) return;
+  if(!exportMime){ setStatus('このブラウザで対応する録画形式が見つかりません。', 'err'); return; }
+  try{
+    const stream = cv.captureStream(30);
+    recorder = new MediaRecorder(stream, {mimeType: exportMime, videoBitsPerSecond: 8000000});
+  }catch(err){
+    setStatus('録画の初期化に失敗しました: ' + err.message, 'err');
+    return;
+  }
+  chunks=[];
+  recorder.ondataavailable = function(e){ if(e.data.size) chunks.push(e.data); };
+  recorder.onstop = function(){
+    const blob = new Blob(chunks,{type: exportMime.split(';')[0]});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'motion-studio-' + Date.now() + '.' + exportExt;
+    document.body.appendChild(a); a.click(); a.remove();
+    setStatus('書き出しが完了しました（.' + exportExt + '）。ダウンロードをご確認ください。');
+    $('exportBtn').disabled = false;
+  };
+  S.t = 0; S.recording = true;
+  if(S.isVideo){ try{ S.media.currentTime = 0; }catch(e){} }
+  play();
+  recorder.start(200);
+  setStatus('<span class="rec-dot"></span>録画中… ' + S.duration + '秒間お待ちください', '');
+  $('exportBtn').disabled = true;
+});
+function stopRecording(){
+  S.recording = false; pause();
+  if(recorder && recorder.state !== 'inactive') recorder.stop();
+}
+
+/* ============ AI (Claude) ============ */
+$('aiBtn').addEventListener('click', async function(){
+  if(!S.media){ setStatus('先に素材をアップロードしてください。'); return; }
+  const userPrompt = $('prompt').value.trim() || '素材の雰囲気に最も合うモーションを提案してください';
+  $('aiBtn').disabled = true;
+  setStatus('✦ Claude が素材を解析しています…', 'ai');
+  try{
+    const tmp = document.createElement('canvas');
+    const sc = 512/Math.max(cv.width,cv.height);
+    tmp.width = Math.round(cv.width*sc); tmp.height = Math.round(cv.height*sc);
+    const tctx = tmp.getContext('2d');
+    const m=S.media, mw=S.isVideo?m.videoWidth:m.naturalWidth, mh=S.isVideo?m.videoHeight:m.naturalHeight;
+    const s = Math.max(tmp.width/mw, tmp.height/mh);
+    tctx.drawImage(m,(tmp.width-mw*s)/2,(tmp.height-mh*s)/2,mw*s,mh*s);
+    const b64 = tmp.toDataURL('image/jpeg',0.8).split(',')[1];
+
+    const apiKey = $('apiKey').value.trim();
+    if(!apiKey){
+      setStatus('AI提案を使うには Anthropic API キーを入力してください。', 'err');
+      $('aiBtn').disabled = false;
+      return;
+    }
+    try{ localStorage.setItem('motionStudioApiKey', apiKey); }catch(e){}
+
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-sonnet-5-5',
+        max_tokens:1000,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+          {type:'text',text:
+'この画像に対してユーザーは次の映像演出を望んでいます：「'+userPrompt+'」\n\n'+
+'以下のJSONのみを返してください（説明文・コードブロック記号は禁止）：\n'+
+'{"motion":"zoom-in|zoom-out|pan-left|pan-right|tilt-up|orbit|none のいずれか",'+
+'"intensity":1から10の整数,'+
+'"filter":"none|cinematic|warm|cool|mono|vhs|dream のいずれか",'+
+'"particles":"none|dust|snow|rain|bokeh のいずれか",'+
+'"reason":"提案理由を日本語で50字以内"}'}
+        ]}]
+      })
+    });
+    const data = await res.json();
+    if(!res.ok){
+      const msg = (data && data.error && data.error.message) || ('HTTP ' + res.status);
+      throw new Error(res.status === 401 ? 'APIキーが無効です' : msg);
+    }
+    const text = (data.content||[]).filter(function(i){return i.type==='text';})
+                 .map(function(i){return i.text;}).join('');
+    const cfg = JSON.parse(text.replace(/```json|```/g,'').trim());
+
+    if(cfg.motion){ S.motion=cfg.motion; setChip('motionRow',cfg.motion); }
+    if(cfg.filter){ S.filter=cfg.filter; setChip('filterRow',cfg.filter); }
+    if(cfg.particles){ S.particles=cfg.particles; setChip('particleRow',cfg.particles); initParticles(); }
+    if(cfg.intensity){ S.intensity=cfg.intensity; $('intensity').value=cfg.intensity; }
+    setStatus('✦ AI提案を適用：' + (cfg.reason || '設定を更新しました'), 'ai');
+    if(!S.playing) play();
+  }catch(err){
+    setStatus('AI解析に失敗しました（' + (err && err.message ? err.message : '不明なエラー') + '）。手動で設定を調整してください。', 'err');
+  }finally{
+    $('aiBtn').disabled = false;
+  }
+});
+
+try{ const k = localStorage.getItem('motionStudioApiKey'); if(k) $('apiKey').value = k; }catch(e){}
+initParticles();
+setStatus('素材をアップロードするとプレビューが始まります。');
+</script>
+</body>
+</html>
