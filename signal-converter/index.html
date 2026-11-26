@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIGNAL CONVERTER — 拡張子変換ラック</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --panel:#E7E9EB;        /* 筐体パネル */
+  --panel-deep:#D8DBDE;   /* パネル陰影 */
+  --ink:#17191C;          /* 刻印インク */
+  --ink-soft:#5A6068;     /* 補助刻印 */
+  --lcd-bg:#1B1611;       /* LCD背景 */
+  --led-amber:#FFA028;    /* LEDアンバー */
+  --led-green:#2FD07E;    /* 変換完了LED */
+  --led-red:#FF5148;      /* エラーLED */
+  --line:#B9BEC4;         /* 罫線 */
+  --body-font:'Zen Kaku Gothic New',sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+  --lcd:'DotGothic16',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+body{
+  background:var(--panel);
+  color:var(--ink);
+  font-family:var(--body-font);
+  min-height:100vh;
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 120px),
+    repeating-linear-gradient(90deg, rgba(0,0,0,.018) 0 1px, transparent 1px 7px);
+}
+.rack{max-width:900px;margin:0 auto;padding:28px 20px 80px}
+
+/* ── ヘッダー：ラック銘板 ── */
+header{
+  display:flex;align-items:flex-end;justify-content:space-between;
+  border-bottom:2px solid var(--ink);
+  padding-bottom:14px;margin-bottom:22px;gap:16px;flex-wrap:wrap;
+}
+.brand h1{
+  font-family:var(--lcd);
+  font-size:clamp(1.5rem,4.5vw,2.2rem);
+  letter-spacing:.06em;font-weight:400;line-height:1.1;
+}
+.brand .sub{
+  font-family:var(--mono);font-size:.72rem;color:var(--ink-soft);
+  letter-spacing:.18em;margin-top:6px;text-transform:uppercase;
+}
+.screws{display:flex;gap:10px;padding-bottom:4px}
+.screw{
+  width:14px;height:14px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%, #fff, #9aa0a6 60%, #6e747b);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.25);position:relative;
+}
+.screw::after{content:"";position:absolute;left:50%;top:2px;bottom:2px;width:1.5px;background:rgba(0,0,0,.4);transform:translateX(-50%) rotate(38deg)}
+
+/* ── LCDステータス（署名要素） ── */
+.lcd{
+  background:var(--lcd-bg);
+  border-radius:6px;
+  border:1px solid #000;
+  box-shadow:inset 0 2px 10px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.6);
+  padding:14px 18px;
+  margin-bottom:26px;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  overflow:hidden;
+}
+.lcd .readout{
+  font-family:var(--lcd);
+  color:var(--led-amber);
+  font-size:clamp(.95rem,2.6vw,1.25rem);
+  letter-spacing:.1em;
+  text-shadow:0 0 8px rgba(255,160,40,.45);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.lcd .meter{display:flex;gap:3px;flex-shrink:0}
+.lcd .meter i{
+  width:6px;height:18px;background:#3a2f22;border-radius:1px;transition:background .15s;
+}
+.lcd .meter i.on{background:var(--led-amber);box-shadow:0 0 6px rgba(255,160,40,.6)}
+.lcd .meter i.on.hot{background:var(--led-red);box-shadow:0 0 6px rgba(255,81,72,.6)}
+
+/* ── 入力ジャック（ドロップゾーン） ── */
+.dropzone{
+  border:2px dashed var(--line);
+  border-radius:10px;
+  background:linear-gradient(180deg,#F2F3F5,#E9EBED);
+  padding:42px 24px;
+  text-align:center;cursor:pointer;
+  transition:border-color .2s, background .2s;
+  outline:none;
+}
+.dropzone:hover,.dropzone:focus-visible{border-color:var(--ink)}
+.dropzone.drag{border-color:var(--led-amber);background:#FBF4E8}
+.dropzone .jack{
+  width:56px;height:56px;margin:0 auto 14px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%, #f5f6f7, #c6cbd0 55%, #8f959c);
+  box-shadow:inset 0 0 0 6px #2a2d31, inset 0 0 0 9px #c6cbd0, 0 2px 4px rgba(0,0,0,.25);
+}
+.dropzone strong{display:block;font-size:1.05rem;font-weight:700;letter-spacing:.04em}
+.dropzone span{display:block;margin-top:6px;color:var(--ink-soft);font-size:.85rem}
+.dropzone .formats{
+  margin-top:14px;font-family:var(--mono);font-size:.68rem;color:var(--ink-soft);
+  letter-spacing:.05em;line-height:1.7;
+}
+input[type=file]{display:none}
+
+/* ── チャンネルストリップ（ファイル行） ── */
+.strips{margin-top:26px;display:flex;flex-direction:column;gap:12px}
+.strip{
+  background:#F4F5F6;
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:14px 16px;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  grid-template-areas:
+    "cat name  actions"
+    "cat route actions"
+    "bar bar   bar";
+  gap:6px 14px;align-items:center;
+  box-shadow:0 1px 0 rgba(255,255,255,.8) inset, 0 1px 3px rgba(0,0,0,.06);
+}
+.cat{
+  grid-area:cat;
+  font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;
+  writing-mode:vertical-rl;text-orientation:mixed;
+  color:var(--ink-soft);border-right:1px solid var(--line);padding-right:10px;
+  align-self:stretch;display:flex;align-items:center;
+}
+.fname{
+  grid-area:name;font-weight:700;font-size:.92rem;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;
+}
+.fname small{font-weight:400;color:var(--ink-soft);font-family:var(--mono);font-size:.72rem;margin-left:8px}
+.route{
+  grid-area:route;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  font-family:var(--mono);font-size:.78rem;
+}
+.route .ext{
+  background:var(--ink);color:#fff;border-radius:4px;padding:2px 8px;
+  font-size:.72rem;letter-spacing:.06em;
+}
+.route .wire{
+  flex:0 0 34px;height:2px;background:repeating-linear-gradient(90deg,var(--ink-soft) 0 5px,transparent 5px 9px);
+  position:relative;
+}
+.route .wire::after{
+  content:"▶";position:absolute;right:-7px;top:50%;transform:translateY(-58%);
+  font-size:.55rem;color:var(--ink-soft);
+}
+select{
+  font-family:var(--mono);font-size:.78rem;
+  padding:5px 10px;border:1px solid var(--ink);border-radius:4px;
+  background:#fff;color:var(--ink);cursor:pointer;
+}
+select:focus-visible{outline:2px solid var(--led-amber);outline-offset:1px}
+.actions{grid-area:actions;display:flex;gap:8px;align-items:center}
+button{
+  font-family:var(--body-font);font-weight:700;font-size:.8rem;
+  border:1px solid var(--ink);border-radius:5px;
+  padding:8px 14px;cursor:pointer;letter-spacing:.05em;
+  background:#fff;color:var(--ink);
+  transition:transform .05s, background .15s;
+}
+button:hover{background:var(--ink);color:#fff}
+button:active{transform:translateY(1px)}
+button:focus-visible{outline:2px solid var(--led-amber);outline-offset:2px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--ink);color:#fff}
+button.primary:hover{background:#000}
+button.dl{border-color:var(--led-green);color:#0d7a48}
+button.dl:hover{background:var(--led-green);color:#04331d;border-color:var(--led-green)}
+button.ghost{border-color:var(--line);color:var(--ink-soft);padding:8px 10px}
+button.ghost:hover{background:var(--panel-deep);color:var(--ink)}
+.bar{
+  grid-area:bar;height:8px;border-radius:4px;background:var(--panel-deep);
+  overflow:hidden;margin-top:6px;display:none;
+}
+.bar.show{display:block}
+.bar i{
+  display:block;height:100%;width:0%;
+  background:linear-gradient(90deg,var(--led-amber),#ffc370);
+  transition:width .2s;
+}
+.strip.done .bar i{background:var(--led-green)}
+.strip.error .bar i{background:var(--led-red);width:100%}
+.msg{grid-area:bar;font-family:var(--mono);font-size:.7rem;color:var(--ink-soft);margin-top:4px}
+.msg.err{color:#b3261e}
+
+/* ── 全体操作列 ── */
+.masterrow{
+  margin-top:20px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;
+}
+.masterrow .note{font-size:.75rem;color:var(--ink-soft);max-width:520px;line-height:1.7}
+
+/* ── 仕様表 ── */
+details.spec{margin-top:34px;border-top:1px solid var(--line);padding-top:16px}
+details.spec summary{
+  cursor:pointer;font-family:var(--mono);font-size:.75rem;letter-spacing:.15em;color:var(--ink-soft);
+  list-style:none;
+}
+details.spec summary::before{content:"▸ "}
+details.spec[open] summary::before{content:"▾ "}
+.spec table{width:100%;border-collapse:collapse;margin-top:12px;font-size:.8rem}
+.spec th,.spec td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+.spec th{background:var(--panel-deep);font-family:var(--mono);font-size:.7rem;letter-spacing:.1em}
+.spec td code{font-family:var(--mono);font-size:.74rem}
+footer{
+  margin-top:30px;font-family:var(--mono);font-size:.66rem;color:var(--ink-soft);
+  letter-spacing:.1em;text-align:center;line-height:1.8;
+}
+@media(max-width:620px){
+  .strip{grid-template-columns:1fr;grid-template-areas:"name" "route" "actions" "bar"}
+  .cat{display:none}
+  .actions{justify-content:flex-end}
+}
+</style>
+</head>
+<body>
+<div class="rack">
+
+  <header>
+    <div class="brand">
+      <h1>SIGNAL CONVERTER</h1>
+      <div class="sub">Universal Format Rack ── Document / Audio / Video / Image</div>
+    </div>
+    <div class="screws" aria-hidden="true">
+      <span class="screw"></span><span class="screw"></span>
+    </div>
+  </header>
+
+  <div class="lcd" role="status" aria-live="polite">
+    <div class="readout" id="lcdText">READY ── ファイルヲ ニュウリョク シテクダサイ</div>
+    <div class="meter" id="lcdMeter" aria-hidden="true"></div>
+  </div>
+
+  <div class="dropzone" id="dropzone" tabindex="0" role="button"
+       aria-label="ファイルを選択またはドロップ">
+    <div class="jack" aria-hidden="true"></div>
+    <strong>ファイルをここにドロップ／クリックして選択</strong>
+    <span>複数ファイル対応・変換はすべてこの端末内で完結します（外部送信なし）</span>
+    <div class="formats">
+      IN: PNG JPG WEBP GIF BMP ／ MP3 WAV OGG M4A FLAC ／ MP4 WEBM MOV ／ DOCX PDF MD TXT HTML CSV XLSX JSON
+    </div>
+  </div>
+  <input type="file" id="fileInput" multiple>
+
+  <div class="strips" id="strips"></div>
+
+  <div class="masterrow" id="masterrow" style="display:none">
+    <button class="primary" id="convertAll">▶ すべて変換</button>
+    <p class="note">
+      動画変換は実時間再生によるエンコードのため、動画の長さと同程度の時間を要します。
+      タブを前面に保ったままお待ちください。
+    </p>
+  </div>
+
+  <details class="spec">
+    <summary>SPEC ── 対応変換一覧と技術的制約</summary>
+    <table>
+      <tr><th>系統</th><th>入力</th><th>出力</th><th>方式・制約</th></tr>
+      <tr><td>画像</td><td><code>png jpg webp gif bmp</code></td><td><code>png jpg webp bmp</code></td><td>Canvas API。JPG変換時は透過部を白で塗り潰し。GIFはアニメーション非対応（先頭フレームのみ）。</td></tr>
+      <tr><td>音声</td><td><code>mp3 wav ogg m4a flac</code>（ブラウザがデコード可能な形式）</td><td><code>wav mp3</code></td><td>Web Audio APIでデコード。WAVは16bit PCM、MP3はlamejs（128kbps）。</td></tr>
+      <tr><td>動画</td><td><code>mp4 webm mov</code>（ブラウザが再生可能な形式）</td><td><code>webm</code>（対応環境では<code>mp4</code>）、音声抽出<code>wav mp3</code></td><td>MediaRecorderによる実時間再エンコード。コーデックはブラウザ依存（VP9/VP8等）。MP4出力はSafari等一部環境のみ。</td></tr>
+      <tr><td>文書</td><td><code>docx</code></td><td><code>html md txt pdf</code></td><td>mammoth.js＋Turndown。見出し・表・箇条書き・段落構造を保持（本文内容は改変しません）。画像・複雑な装飾は簡略化。</td></tr>
+      <tr><td>文書</td><td><code>pdf</code></td><td><code>txt md</code></td><td>pdf.jsによるテキスト抽出。スキャンPDF（画像のみ）は抽出不可。</td></tr>
+      <tr><td>文書</td><td><code>md txt html</code></td><td><code>md txt html pdf</code></td><td>marked / Turndown。PDF化はHTML組版レンダリング方式：見出し・表・箇条書き・改行を保持し、要素単位で改ページ（日本語対応。文字選択不可の画像PDFである点のみ制約）。</td></tr>
+      <tr><td>データ</td><td><code>csv xlsx json</code></td><td><code>csv xlsx json html</code></td><td>SheetJS。JSONはオブジェクト配列を表形式として解釈。</td></tr>
+    </table>
+  </details>
+
+  <footer>
+    ALL CONVERSION RUNS LOCALLY IN YOUR BROWSER ── NO UPLOAD<br>
+    CH: <span id="chCount">0</span> ／ DONE: <span id="doneCount">0</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ============ ユーティリティ ============ */
+const $ = s => document.querySelector(s);
+const lcdText = $("#lcdText");
+const lcdMeter = $("#lcdMeter");
+for (let i = 0; i < 12; i++) lcdMeter.appendChild(document.createElement("i"));
+
+function lcd(msg, level = 0) {
+  lcdText.textContent = msg;
+  const bars = lcdMeter.children;
+  const n = Math.round(level * bars.length);
+  for (let i = 0; i < bars.length; i++) {
+    bars[i].className = i < n ? (i >= bars.length - 2 ? "on hot" : "on") : "";
+  }
+}
+let meterIdle = setInterval(() => {
+  if (queueBusy) return;
+  const bars = lcdMeter.children;
+  const t = Date.now() / 400;
+  for (let i = 0; i < bars.length; i++) {
+    bars[i].className = Math.sin(t + i * 0.9) > 0.6 ? "on" : "";
+  }
+}, 200);
+
+const scriptCache = {};
+function loadScript(url) {
+  if (scriptCache[url]) return scriptCache[url];
+  scriptCache[url] = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = url;
+    s.onload = res;
+    s.onerror = () => { delete scriptCache[url]; rej(new Error("ライブラリの読み込みに失敗: " + url)); };
+    document.head.appendChild(s);
+  });
+  return scriptCache[url];
+}
+const LIB = {
+  mammoth : "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js",
+  turndown: "https://cdnjs.cloudflare.com/ajax/libs/turndown/7.1.2/turndown.min.js",
+  marked  : "https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js",
+  xlsx    : "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+  jspdf   : "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+  lame    : "https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js",
+  h2c     : "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+  pdfjs   : "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+};
+
+function extOf(name) {
+  const m = name.toLowerCase().match(/\.([a-z0-9]+)$/);
+  return m ? m[1] : "";
+}
+function baseName(name) { return name.replace(/\.[a-z0-9]+$/i, ""); }
+function fmtSize(b) {
+  if (b < 1024) return b + " B";
+  if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
+  return (b / 1048576).toFixed(1) + " MB";
+}
+function downloadBlob(blob, filename) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+}
+
+/* ============ 形式カタログ ============ */
+const CATS = {
+  image: ["png","jpg","jpeg","webp","gif","bmp"],
+  audio: ["mp3","wav","ogg","oga","m4a","aac","flac"],
+  video: ["mp4","webm","mov","m4v","mkv"],
+  doc  : ["docx","pdf","md","markdown","txt","html","htm"],
+  data : ["csv","xlsx","xls","json"]
+};
+function categoryOf(ext) {
+  for (const [c, list] of Object.entries(CATS)) if (list.includes(ext)) return c;
+  return null;
+}
+const CAT_LABEL = { image:"IMAGE", audio:"AUDIO", video:"VIDEO", doc:"DOC", data:"DATA" };
+
+function targetsFor(ext, cat) {
+  switch (cat) {
+    case "image": return ["png","jpg","webp","bmp"].filter(t => t !== normalizeExt(ext));
+    case "audio": return ["wav","mp3"].filter(t => t !== normalizeExt(ext));
+    case "video": {
+      const t = ["webm"];
+      try {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported("video/mp4")) t.push("mp4");
+      } catch(e){}
+      t.push("wav（音声抽出）","mp3（音声抽出）");
+      return t.filter(x => x !== ext);
+    }
+    case "doc":
+      if (ext === "docx") return ["html","md","txt","pdf"];
+      if (ext === "pdf")  return ["txt","md"];
+      if (ext === "md" || ext === "markdown") return ["html","txt","pdf"];
+      if (ext === "txt")  return ["html","md","pdf"];
+      return ["md","txt","pdf"]; // html
+    case "data":
+      if (ext === "csv")  return ["xlsx","json","html"];
+      if (ext === "json") return ["csv","xlsx","html"];
+      return ["csv","json","html"]; // xlsx/xls
+  }
+  return [];
+}
+function normalizeExt(e){ return e === "jpeg" ? "jpg" : e; }
+
+/* ============ キュー管理 ============ */
+const strips = $("#strips");
+const items = [];
+let queueBusy = false;
+let idSeq = 0;
+
+function addFiles(fileList) {
+  let added = 0, skipped = [];
+  for (const file of fileList) {
+    const ext = extOf(file.name);
+    const cat = categoryOf(ext);
+    if (!cat) { skipped.push(file.name); continue; }
+    const item = { id: ++idSeq, file, ext, cat, status: "ready", result: null };
+    items.push(item);
+    renderStrip(item);
+    added++;
+  }
+  updateCounters();
+  $("#masterrow").style.display = items.length ? "flex" : "none";
+  if (skipped.length) {
+    lcd("ミタイオウ: " + skipped[0] + (skipped.length > 1 ? " ホカ" + (skipped.length-1) + "ケン" : ""));
+  } else if (added) {
+    lcd(added + " ファイル ヲ ジュシン ── シュツリョク ヲ センタク");
+  }
+}
+
+function renderStrip(item) {
+  const el = document.createElement("div");
+  el.className = "strip";
+  el.dataset.id = item.id;
+  const targets = targetsFor(item.ext, item.cat);
+  el.innerHTML = `
+    <div class="cat">${CAT_LABEL[item.cat]}</div>
+    <div class="fname">${escapeHtml(item.file.name)}<small>${fmtSize(item.file.size)}</small></div>
+    <div class="route">
+      <span class="ext">${item.ext.toUpperCase()}</span>
+      <span class="wire" aria-hidden="true"></span>
+      <label>
+        <span class="sr-only">出力形式</span>
+        <select aria-label="出力形式">
+          ${targets.map(t => `<option value="${t}">${t.toUpperCase()}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+    <div class="actions">
+      <button class="convert">変換</button>
+      <button class="dl" style="display:none">保存</button>
+      <button class="ghost remove" aria-label="このファイルを削除">✕</button>
+    </div>
+    <div class="bar"><i></i></div>
+    <div class="msg" style="display:none"></div>
+  `;
+  el.querySelector(".convert").addEventListener("click", () => enqueue(item));
+  el.querySelector(".remove").addEventListener("click", () => {
+    const i = items.indexOf(item);
+    if (i >= 0) items.splice(i, 1);
+    el.remove();
+    updateCounters();
+    $("#masterrow").style.display = items.length ? "flex" : "none";
+  });
+  el.querySelector(".dl").addEventListener("click", () => {
+    if (item.result) downloadBlob(item.result.blob, item.result.name);
+  });
+  el.querySelector("select").addEventListener("change", () => {
+    item.status = "ready";
+    el.classList.remove("done","error");
+    el.querySelector(".dl").style.display = "none";
+    el.querySelector(".bar").classList.remove("show");
+    setMsg(item, "");
+  });
+  item.el = el;
+  strips.appendChild(el);
+}
+
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function setBar(item, pct) {
+  const bar = item.el.querySelector(".bar");
+  bar.classList.add("show");
+  bar.querySelector("i").style.width = Math.min(100, Math.round(pct * 100)) + "%";
+}
+function setMsg(item, text, isErr = false) {
+  const m = item.el.querySelector(".msg");
+  m.textContent = text;
+  m.style.display = text ? "block" : "none";
+  m.className = "msg" + (isErr ? " err" : "");
+}
+function updateCounters() {
+  $("#chCount").textContent = items.length;
+  $("#doneCount").textContent = items.filter(i => i.status === "done").length;
+}
+
+/* 直列キュー（動画変換の同時実行を避ける） */
+const pending = [];
+async function enqueue(item) {
+  if (item.status === "running" || pending.includes(item)) return;
+  pending.push(item);
+  if (queueBusy) { setMsg(item, "待機中…"); return; }
+  queueBusy = true;
+  while (pending.length) {
+    const it = pending.shift();
+    await runConversion(it);
+  }
+  queueBusy = false;
+  lcd("READY");
+}
+$("#convertAll").addEventListener("click", () => {
+  items.filter(i => i.status !== "done" && i.status !== "running").forEach(enqueue);
+});
+
+async function runConversion(item) {
+  const target = item.el.querySelector("select").value;
+  item.status = "running";
+  item.el.classList.remove("done","error");
+  setMsg(item, "");
+  setBar(item, 0.02);
+  lcd("CONVERTING ── " + item.file.name.slice(0, 24), 0.1);
+  try {
+    const result = await convert(item, target, p => {
+      setBar(item, p);
+      lcd("CONVERTING " + Math.round(p * 100) + "% ── " + target.toUpperCase(), p);
+    });
+    item.result = result;
+    item.status = "done";
+    item.el.classList.add("done");
+    setBar(item, 1);
+    item.el.querySelector(".dl").style.display = "";
+    setMsg(item, "完了: " + result.name + "（" + fmtSize(result.blob.size) + "）");
+    lcd("DONE ── " + result.name.slice(0, 28), 1);
+    downloadBlob(result.blob, result.name);
+  } catch (err) {
+    console.error(err);
+    item.status = "error";
+    item.el.classList.add("error");
+    setMsg(item, "エラー: " + (err && err.message ? err.message : "変換に失敗しました"), true);
+    lcd("ERROR ── " + item.file.name.slice(0, 24), 1);
+  }
+  updateCounters();
+}
+
+/* ============ 変換ディスパッチ ============ */
+async function convert(item, target, onProgress) {
+  const { file, ext, cat } = item;
+  const base = baseName(file.name);
+  if (cat === "image") return convertImage(file, base, target, onProgress);
+  if (cat === "audio") return convertAudio(file, base, target, onProgress);
+  if (cat === "video") {
+    if (target.startsWith("wav")) return extractAudio(file, base, "wav", onProgress);
+    if (target.startsWith("mp3")) return extractAudio(file, base, "mp3", onProgress);
+    return convertVideo(file, base, target, onProgress);
+  }
+  if (cat === "doc")  return convertDoc(file, ext, base, target, onProgress);
+  if (cat === "data") return convertData(file, ext, base, target, onProgress);
+  throw new Error("未対応のカテゴリです");
+}
+
+/* ============ 画像 ============ */
+async function convertImage(file, base, target, onProgress) {
+  onProgress(0.2);
+  const img = await loadImage(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext("2d");
+  if (target === "jpg") { ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+  ctx.drawImage(img, 0, 0);
+  onProgress(0.6);
+  let blob;
+  if (target === "bmp") {
+    blob = encodeBMP(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  } else {
+    const mime = { png:"image/png", jpg:"image/jpeg", webp:"image/webp" }[target];
+    blob = await new Promise((res, rej) =>
+      canvas.toBlob(b => b ? res(b) : rej(new Error(target.toUpperCase() + "エンコードに未対応の環境です")), mime, 0.92));
+  }
+  onProgress(1);
+  return { blob, name: base + "." + target };
+}
+function loadImage(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); res(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("画像を読み込めませんでした")); };
+    img.src = url;
+  });
+}
+function encodeBMP(imageData) { /* 24bit BMP */
+  const { width: w, height: h, data } = imageData;
+  const rowSize = Math.floor((24 * w + 31) / 32) * 4;
+  const pixelSize = rowSize * h;
+  const buf = new ArrayBuffer(54 + pixelSize);
+  const dv = new DataView(buf);
+  dv.setUint8(0, 0x42); dv.setUint8(1, 0x4D);
+  dv.setUint32(2, 54 + pixelSize, true);
+  dv.setUint32(10, 54, true);
+  dv.setUint32(14, 40, true);
+  dv.setInt32(18, w, true); dv.setInt32(22, h, true);
+  dv.setUint16(26, 1, true); dv.setUint16(28, 24, true);
+  dv.setUint32(34, pixelSize, true);
+  dv.setUint32(38, 2835, true); dv.setUint32(42, 2835, true);
+  let off = 54;
+  for (let y = h - 1; y >= 0; y--) {
+    let rowOff = off;
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const a = data[i + 3] / 255;
+      dv.setUint8(rowOff++, Math.round(data[i + 2] * a + 255 * (1 - a)));
+      dv.setUint8(rowOff++, Math.round(data[i + 1] * a + 255 * (1 - a)));
+      dv.setUint8(rowOff++, Math.round(data[i]     * a + 255 * (1 - a)));
+    }
+    off += rowSize;
+  }
+  return new Blob([buf], { type: "image/bmp" });
+}
+
+/* ============ 音声 ============ */
+async function decodeToBuffer(file, onProgress) {
+  onProgress(0.1);
+  const arr = await file.arrayBuffer();
+  onProgress(0.25);
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    const buf = await ctx.decodeAudioData(arr.slice(0));
+    return buf;
+  } catch(e) {
+    throw new Error("この音声形式はお使いのブラウザでデコードできません");
+  } finally { ctx.close && ctx.close(); }
+}
+async function convertAudio(file, base, target, onProgress) {
+  const buf = await decodeToBuffer(file, onProgress);
+  onProgress(0.5);
+  const blob = target === "wav" ? bufferToWav(buf) : await bufferToMp3(buf, onProgress);
+  onProgress(1);
+  return { blob, name: base + "." + target };
+}
+async function extractAudio(file, base, target, onProgress) {
+  const buf = await decodeToBuffer(file, onProgress).catch(() => {
+    throw new Error("この動画から音声トラックをデコードできませんでした");
+  });
+  onProgress(0.5);
+  const blob = target === "wav" ? bufferToWav(buf) : await bufferToMp3(buf, onProgress);
+  onProgress(1);
+  return { blob, name: base + "." + target };
+}
+function bufferToWav(abuf) { /* 16bit PCM */
+  const ch = Math.min(2, abuf.numberOfChannels);
+  const sr = abuf.sampleRate;
+  const len = abuf.length;
+  const bytes = 44 + len * ch * 2;
+  const buf = new ArrayBuffer(bytes);
+  const dv = new DataView(buf);
+  const wr = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+  wr(0, "RIFF"); dv.setUint32(4, bytes - 8, true); wr(8, "WAVE");
+  wr(12, "fmt "); dv.setUint32(16, 16, true);
+  dv.setUint16(20, 1, true); dv.setUint16(22, ch, true);
+  dv.setUint32(24, sr, true); dv.setUint32(28, sr * ch * 2, true);
+  dv.setUint16(32, ch * 2, true); dv.setUint16(34, 16, true);
+  wr(36, "data"); dv.setUint32(40, len * ch * 2, true);
+  const chans = [];
+  for (let c = 0; c < ch; c++) chans.push(abuf.getChannelData(c));
+  let off = 44;
+  for (let i = 0; i < len; i++) {
+    for (let c = 0; c < ch; c++) {
+      let v = Math.max(-1, Math.min(1, chans[c][i]));
+      dv.setInt16(off, v < 0 ? v * 0x8000 : v * 0x7FFF, true);
+      off += 2;
+    }
+  }
+  return new Blob([buf], { type: "audio/wav" });
+}
+async function bufferToMp3(abuf, onProgress) {
+  await loadScript(LIB.lame);
+  if (typeof lamejs === "undefined") throw new Error("MP3エンコーダを読み込めませんでした");
+  const ch = Math.min(2, abuf.numberOfChannels);
+  const sr = abuf.sampleRate;
+  const enc = new lamejs.Mp3Encoder(ch, sr, 128);
+  const to16 = f => {
+    const out = new Int16Array(f.length);
+    for (let i = 0; i < f.length; i++) {
+      const v = Math.max(-1, Math.min(1, f[i]));
+      out[i] = v < 0 ? v * 0x8000 : v * 0x7FFF;
+    }
+    return out;
+  };
+  const L = to16(abuf.getChannelData(0));
+  const R = ch > 1 ? to16(abuf.getChannelData(1)) : null;
+  const block = 1152, chunks = [];
+  for (let i = 0; i < L.length; i += block) {
+    const l = L.subarray(i, i + block);
+    const r = R ? R.subarray(i, i + block) : undefined;
+    const out = ch > 1 ? enc.encodeBuffer(l, r) : enc.encodeBuffer(l);
+    if (out.length) chunks.push(new Uint8Array(out));
+    if (i % (block * 200) === 0) {
+      onProgress(0.5 + 0.45 * (i / L.length));
+      await new Promise(r2 => setTimeout(r2, 0));
+    }
+  }
+  const end = enc.flush();
+  if (end.length) chunks.push(new Uint8Array(end));
+  return new Blob(chunks, { type: "audio/mpeg" });
+}
+
+/* ============ 動画（実時間再エンコード） ============ */
+async function convertVideo(file, base, target, onProgress) {
+  if (!("MediaRecorder" in window)) throw new Error("この環境はMediaRecorderに未対応です");
+  const mimeCandidates = target === "mp4"
+    ? ["video/mp4"]
+    : ["video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"];
+  const mime = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m));
+  if (!mime) throw new Error(target.toUpperCase() + "出力に未対応の環境です");
+
+  const url = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.src = url;
+  video.playsInline = true;
+  video.style.cssText = "position:fixed;left:-9999px;top:0;width:2px";
+  document.body.appendChild(video);
+
+  await new Promise((res, rej) => {
+    video.onloadedmetadata = res;
+    video.onerror = () => rej(new Error("この動画はブラウザで再生（デコード）できません"));
+  });
+  const dur = video.duration;
+  if (!isFinite(dur) || dur <= 0) throw new Error("動画の長さを取得できませんでした");
+
+  /* 音声：要素をAudioContext経由でルーティング（無音再生＋キャプチャ両立） */
+  const actx = new (window.AudioContext || window.webkitAudioContext)();
+  const srcNode = actx.createMediaElementSource(video);
+  const dest = actx.createMediaStreamDestination();
+  srcNode.connect(dest);
+
+  const capture = video.captureStream ? video.captureStream() : video.mozCaptureStream();
+  const tracks = [...capture.getVideoTracks(), ...dest.stream.getAudioTracks()];
+  const stream = new MediaStream(tracks);
+
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5_000_000 });
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+
+  const cleanup = () => {
+    video.pause(); video.remove(); URL.revokeObjectURL(url);
+    actx.close && actx.close();
+  };
+
+  return new Promise((resolve, reject) => {
+    const timer = setInterval(() => {
+      onProgress(Math.min(0.98, video.currentTime / dur));
+    }, 250);
+    rec.onstop = () => {
+      clearInterval(timer); cleanup();
+      if (!chunks.length) return reject(new Error("エンコード結果が空でした"));
+      const outExt = mime.startsWith("video/mp4") ? "mp4" : "webm";
+      resolve({ blob: new Blob(chunks, { type: mime.split(";")[0] }), name: base + "." + outExt });
+    };
+    rec.onerror = e => { clearInterval(timer); cleanup(); reject(new Error("録画エラー: " + (e.error && e.error.message || ""))); };
+    video.onended = () => { try { rec.stop(); } catch(e){} };
+    actx.resume().then(() => {
+      rec.start(1000);
+      return video.play();
+    }).catch(err => {
+      clearInterval(timer); cleanup();
+      reject(new Error("再生を開始できませんでした: " + err.message));
+    });
+  });
+}
+
+/* ============ 文書 ============ */
+async function readText(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = () => rej(new Error("ファイルを読み込めませんでした"));
+    r.readAsText(file, "utf-8");
+  });
+}
+function htmlWrap(bodyHtml, title) {
+  return `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title>
+<style>body{font-family:sans-serif;max-width:760px;margin:40px auto;padding:0 20px;line-height:1.8}
+table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px 8px}</style>
+</head><body>${bodyHtml}</body></html>`;
+}
+function stripHtml(html) {
+  /* ブロック要素・表の構造を明示的な改行/タブとして保持する */
+  const d = document.implementation.createHTMLDocument("");
+  d.body.innerHTML = html;
+  d.body.querySelectorAll("script,style").forEach(n => n.remove());
+  d.body.querySelectorAll("br").forEach(n => n.replaceWith("\n"));
+  d.body.querySelectorAll("td,th").forEach(n => n.append("\t"));
+  d.body.querySelectorAll("li").forEach(n => n.prepend("・"));
+  d.body.querySelectorAll("h1,h2,h3,h4,h5,h6").forEach(n => { n.prepend("\n"); n.append("\n"); });
+  d.body.querySelectorAll("tr,p,div,li,pre,blockquote,table,ul,ol").forEach(n => n.append("\n"));
+  return d.body.textContent
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+async function htmlToMd(html) {
+  await loadScript(LIB.turndown);
+  const td = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" });
+  /* 表をGFMパイプ表として保持（Turndown標準は表を破壊するため） */
+  td.addRule("tables", {
+    filter: "table",
+    replacement: (content, node) => {
+      const rows = [...node.querySelectorAll("tr")].map(tr =>
+        [...tr.children].map(c => c.textContent.replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|").trim()));
+      if (!rows.length) return "";
+      const w = Math.max(...rows.map(r => r.length));
+      rows.forEach(r => { while (r.length < w) r.push(""); });
+      const line = r => "| " + r.join(" | ") + " |";
+      return "\n\n" + [line(rows[0]), "| " + Array(w).fill("---").join(" | ") + " |",
+        ...rows.slice(1).map(line)].join("\n") + "\n\n";
+    }
+  });
+  return td.turndown(html);
+}
+async function mdToHtml(md) {
+  await loadScript(LIB.marked);
+  return (window.marked.parse ? marked.parse(md) : marked(md));
+}
+
+async function convertDoc(file, ext, base, target, onProgress) {
+  onProgress(0.1);
+  let text = null, html = null;
+
+  if (ext === "docx") {
+    await loadScript(LIB.mammoth);
+    const arr = await file.arrayBuffer();
+    onProgress(0.35);
+    const r = await mammoth.convertToHtml({ arrayBuffer: arr });
+    html = r.value;
+  } else if (ext === "pdf") {
+    await loadScript(LIB.pdfjs);
+    const pdfjs = window.pdfjsLib || window["pdfjs-dist/build/pdf"];
+    pdfjs.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const arr = await file.arrayBuffer();
+    const doc = await pdfjs.getDocument({ data: arr }).promise;
+    const parts = [];
+    for (let p = 1; p <= doc.numPages; p++) {
+      const page = await doc.getPage(p);
+      const tc = await page.getTextContent();
+      parts.push(tc.items.map(i => i.str).join(" "));
+      onProgress(0.15 + 0.6 * (p / doc.numPages));
+    }
+    text = parts.join("\n\n");
+    if (!text.trim()) throw new Error("テキストを抽出できませんでした（画像のみのPDFの可能性）");
+  } else if (ext === "md" || ext === "markdown") {
+    text = await readText(file);
+    html = await mdToHtml(text);
+  } else if (ext === "html" || ext === "htm") {
+    html = await readText(file);
+  } else { // txt
+    text = await readText(file);
+  }
+  onProgress(0.75);
+
+  if (target === "html") {
+    const body = html != null ? html : "<pre style='white-space:pre-wrap'>" + escapeHtml(text) + "</pre>";
+    return { blob: new Blob([htmlWrap(body, base)], { type: "text/html" }), name: base + ".html" };
+  }
+  if (target === "md") {
+    const md = html != null ? await htmlToMd(html) : text;
+    return { blob: new Blob([md], { type: "text/markdown" }), name: base + ".md" };
+  }
+  if (target === "txt") {
+    const t = text != null && (ext === "md" || ext === "markdown" || ext === "txt" || ext === "pdf")
+      ? text : stripHtml(html);
+    return { blob: new Blob([t], { type: "text/plain" }), name: base + ".txt" };
+  }
+  if (target === "pdf") {
+    /* 構造保持：HTMLがあればそのままレイアウトごとレンダリング。
+       プレーンテキストは改行を保持したまま段落化する。 */
+    const body = html != null
+      ? html
+      : "<div style='white-space:pre-wrap'>" + escapeHtml(text) + "</div>";
+    const blob = await htmlToPdf(body, onProgress);
+    return { blob, name: base + ".pdf" };
+  }
+  throw new Error("未対応の変換です");
+}
+
+/* ============ HTML→PDF（構造保持レンダリング・日本語対応） ============
+   見出し・表・箇条書き・段落をそのままA4ページ単位で組版し、
+   要素単位で改ページする（原稿内容には一切手を加えない）。 */
+async function htmlToPdf(bodyHtml, onProgress) {
+  await loadScript(LIB.jspdf);
+  await loadScript(LIB.h2c);
+  const { jsPDF } = window.jspdf;
+  const PW = 595.28, PH = 841.89;           /* A4 (pt) */
+  const W = 794, Hpx = 1123, PADX = 60, PADY = 52; /* A4 @96dpi (px) */
+
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:-12000px;top:0;background:#fff";
+  host.innerHTML = `<style>
+    .pdfpage{width:${W}px;min-height:${Hpx}px;padding:${PADY}px ${PADX}px;box-sizing:border-box;
+      background:#fff;color:#111;overflow:hidden;
+      font-family:'Zen Kaku Gothic New','Hiragino Sans','Yu Gothic',sans-serif;
+      font-size:13.5px;line-height:1.9;word-break:break-word}
+    .pdfpage h1{font-size:23px;line-height:1.5;margin:0 0 18px;padding-bottom:8px;border-bottom:3px solid #222}
+    .pdfpage h2{font-size:18px;line-height:1.5;margin:22px 0 12px;padding-bottom:5px;border-bottom:1.5px solid #444}
+    .pdfpage h3{font-size:15.5px;margin:16px 0 8px;font-weight:700}
+    .pdfpage h4,.pdfpage h5{font-size:14px;margin:14px 0 6px;font-weight:700}
+    .pdfpage p{margin:0 0 11px}
+    .pdfpage ul,.pdfpage ol{margin:0 0 11px;padding-left:26px}
+    .pdfpage li{margin:2px 0}
+    .pdfpage table{border-collapse:collapse;width:100%;margin:4px 0 14px;font-size:12px;line-height:1.6}
+    .pdfpage th,.pdfpage td{border:1px solid #555;padding:5px 8px;vertical-align:top;text-align:left}
+    .pdfpage th{background:#ececec;font-weight:700}
+    .pdfpage pre{white-space:pre-wrap;word-break:break-all;background:#f4f4f4;padding:10px 12px;
+      font-size:11.5px;margin:0 0 12px;font-family:'IBM Plex Mono',monospace}
+    .pdfpage code{font-family:'IBM Plex Mono',monospace;font-size:.92em}
+    .pdfpage blockquote{margin:0 0 12px;padding:2px 14px;border-left:3px solid #999;color:#333}
+    .pdfpage img{max-width:100%;height:auto}
+    .pdfpage hr{border:none;border-top:1px solid #999;margin:16px 0}
+  </style>`;
+  document.body.appendChild(host);
+
+  /* 原稿をブロック単位に分解（テキストノードは段落として包むのみ） */
+  const src = document.createElement("div");
+  src.innerHTML = bodyHtml;
+  const blocks = [...src.childNodes]
+    .filter(n => !(n.nodeType === 3 && !n.textContent.trim()))
+    .map(n => {
+      if (n.nodeType === 3) { const p = document.createElement("p"); p.textContent = n.textContent; return p; }
+      return n;
+    });
+  if (!blocks.length) { host.remove(); throw new Error("PDF化する内容がありません"); }
+
+  /* 要素単位でページに詰め、収まらなければ改ページ */
+  const pages = [];
+  const newPage = () => { const d = document.createElement("div"); d.className = "pdfpage"; host.appendChild(d); pages.push(d); return d; };
+  let cur = newPage();
+  for (const b of blocks) {
+    cur.appendChild(b);
+    if (cur.scrollHeight <= Hpx + 2) continue;
+    if (cur.childElementCount > 1) { cur.removeChild(b); cur = newPage(); cur.appendChild(b); }
+    if (cur.scrollHeight > Hpx + 2) { cur.dataset.tall = "1"; cur = newPage(); } /* 単体で1頁超（長大な表等）→後段で行間分割 */
+  }
+
+  if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch(e){} }
+
+  const pdf = new jsPDF({ unit: "pt", format: "a4" });
+  const realPages = pages.filter(p => p.childElementCount);
+  let first = true;
+  for (let i = 0; i < realPages.length; i++) {
+    const pg = realPages[i];
+    const canvas = await html2canvas(pg, { scale: 2, backgroundColor: "#fff", logging: false, windowWidth: W });
+    if (pg.dataset.tall) {
+      /* 1頁超の要素：文字行を切断しない位置（空白行）を探して分割 */
+      const pagePx = Math.floor(canvas.width * (PH / PW));
+      let y = 0;
+      while (y < canvas.height) {
+        let cut = Math.min(y + pagePx, canvas.height);
+        if (cut < canvas.height) cut = Math.max(y + Math.floor(pagePx / 2), findWhiteCut(canvas, cut));
+        const pc = document.createElement("canvas");
+        pc.width = canvas.width; pc.height = cut - y;
+        const c2 = pc.getContext("2d");
+        c2.fillStyle = "#fff"; c2.fillRect(0, 0, pc.width, pc.height);
+        c2.drawImage(canvas, 0, y, canvas.width, cut - y, 0, 0, canvas.width, cut - y);
+        if (!first) pdf.addPage();
+        first = false;
+        pdf.addImage(pc.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, PW, (cut - y) * (PW / canvas.width));
+        y = cut;
+      }
+    } else {
+      if (!first) pdf.addPage();
+      first = false;
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, PW, PH);
+    }
+    onProgress(0.75 + 0.23 * ((i + 1) / realPages.length));
+    await new Promise(r => setTimeout(r, 0));
+  }
+  host.remove();
+  return pdf.output("blob");
+}
+/* 指定位置から上方向に「インクのない行」を探す（文字の途中で切らないため） */
+function findWhiteCut(canvas, y) {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  for (let dy = 0; dy < 170 && y - dy > 1; dy++) {
+    const d = ctx.getImageData(0, y - dy, canvas.width, 1).data;
+    let ink = 0;
+    for (let x = 0; x < d.length; x += 24) {
+      if (d[x] < 238 || d[x + 1] < 238 || d[x + 2] < 238) { ink++; if (ink > 3) break; }
+    }
+    if (ink <= 3) return y - dy;
+  }
+  return y;
+}
+
+/* ============ データ（CSV / XLSX / JSON） ============ */
+async function convertData(file, ext, base, target, onProgress) {
+  await loadScript(LIB.xlsx);
+  onProgress(0.2);
+  let wb;
+  if (ext === "json") {
+    const obj = JSON.parse(await readText(file));
+    const rows = Array.isArray(obj) ? obj : [obj];
+    const ws = XLSX.utils.json_to_sheet(rows);
+    wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+  } else {
+    const arr = await file.arrayBuffer();
+    wb = XLSX.read(arr, { type: "array" });
+  }
+  onProgress(0.6);
+  const ws = wb.Sheets[wb.SheetNames[0]];
+
+  if (target === "csv") {
+    const csv = "\uFEFF" + XLSX.utils.sheet_to_csv(ws);
+    return { blob: new Blob([csv], { type: "text/csv" }), name: base + ".csv" };
+  }
+  if (target === "json") {
+    const json = JSON.stringify(XLSX.utils.sheet_to_json(ws), null, 2);
+    return { blob: new Blob([json], { type: "application/json" }), name: base + ".json" };
+  }
+  if (target === "html") {
+    const tbl = XLSX.utils.sheet_to_html(ws);
+    return { blob: new Blob([htmlWrap(tbl, base)], { type: "text/html" }), name: base + ".html" };
+  }
+  if (target === "xlsx") {
+    const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    return { blob: new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), name: base + ".xlsx" };
+  }
+  throw new Error("未対応の変換です");
+}
+
+/* ============ 入力ハンドラ ============ */
+const dz = $("#dropzone");
+const input = $("#fileInput");
+dz.addEventListener("click", () => input.click());
+dz.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+input.addEventListener("change", () => { addFiles(input.files); input.value = ""; });
+["dragenter","dragover"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("drag"); }));
+["dragleave","drop"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("drag"); }));
+dz.addEventListener("drop", e => { if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => e.preventDefault());
+</script>
+</body>
+</html>
