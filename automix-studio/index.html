@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>AutoMix Studio</title>
+<meta name="description" content="Logic Pro等から書き出したステムを、ブラウザ内だけで自動ミックス。WAV/MP3/レポートをダウンロード。">
+<meta name="theme-color" content="#191b1f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AutoMix">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"
+  onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js';document.head.appendChild(s)"></script>
+<style>
+:root{
+  --faceplate:#191b1f; --panel:#22252b; --edge:#2f333b;
+  --ink:#e9e6dc; --dim:#9a978d; --amber:#e8a33d; --meter:#8fb98a;
+  --danger:#d4674f; --r:6px;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--faceplate);color:var(--ink);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  background-image:radial-gradient(circle at 20% -10%,#23262c 0%,transparent 55%);
+  padding-bottom:60px}
+.wrap{max-width:880px;margin:0 auto;padding:0 16px}
+header{border-bottom:1px solid var(--edge);padding:22px 0 16px;margin-bottom:20px}
+h1{margin:0;font-size:30px;letter-spacing:.02em;font-weight:800}
+h1 .dot{display:inline-block;width:12px;height:12px;border-radius:50%;
+  background:var(--amber);box-shadow:0 0 12px var(--amber);margin-right:10px}
+.sub{color:var(--dim);font-size:12.5px;margin-top:4px}
+h2{font-size:15px;letter-spacing:.12em;color:var(--amber);font-weight:700;
+  text-transform:uppercase;margin:28px 0 10px}
+.panel{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r);padding:16px}
+.dz{border:2px dashed var(--edge);border-radius:var(--r);padding:34px 16px;text-align:center;
+  cursor:pointer;transition:border-color .15s}
+.dz.drag,.dz:hover{border-color:var(--amber)}
+.dz b{font-size:16px}
+.dz .note{color:var(--dim);font-size:12px;margin-top:8px;line-height:1.7}
+.btn{display:inline-block;background:var(--panel);border:1px solid var(--edge);color:var(--ink);
+  border-radius:var(--r);padding:11px 18px;font-size:14px;cursor:pointer;min-height:44px;
+  text-decoration:none;text-align:center}
+.btn:hover{border-color:var(--dim)}
+.btn.primary{background:var(--amber);border-color:var(--amber);color:#1a1508;font-weight:700}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.filerow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;
+  border-bottom:1px solid var(--edge);padding:9px 2px;font-size:13.5px}
+.filerow:last-child{border-bottom:0}
+.filerow .nm{font-weight:600;word-break:break-all}
+.filerow .q{color:var(--dim);font-family:var(--mono);font-size:11.5px}
+.filerow select{background:#1b1e23;color:var(--ink);border:1px solid var(--edge);
+  border-radius:4px;padding:8px;font-size:16px;margin-left:auto}
+.filerow .bad{color:var(--danger)}
+fieldset{border:1px solid var(--edge);border-radius:var(--r);margin:0 0 12px;padding:10px 12px}
+legend{font-size:12px;letter-spacing:.1em;color:var(--dim);padding:0 6px}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg label{display:flex;align-items:center;gap:6px;background:#1b1e23;border:1px solid var(--edge);
+  border-radius:4px;padding:9px 12px;cursor:pointer;font-size:13.5px;min-height:44px}
+.seg input{accent-color:var(--amber)}
+.seg label:has(input:checked){border-color:var(--amber);color:var(--amber)}
+.rail{height:10px;background:#1b1e23;border:1px solid var(--edge);border-radius:5px;overflow:hidden}
+.fill{height:100%;width:0%;background:var(--amber);transition:width .3s}
+.stage{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:8px;min-height:18px}
+.stats{font-family:var(--mono);font-size:13px;color:var(--meter);margin:12px 0}
+.dls{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+audio{width:100%;margin-top:12px}
+.err{background:#2a1d18;border:1px solid var(--danger);border-radius:var(--r);
+  padding:12px;font-size:13px;margin-top:12px;word-break:break-word}
+.hint{color:var(--dim);font-size:12px;line-height:1.7}
+.report{background:#1b1e23;border:1px solid var(--edge);border-radius:var(--r);
+  padding:14px;font-family:var(--mono);font-size:12px;white-space:pre-wrap;
+  max-height:340px;overflow:auto;margin-top:12px}
+[hidden]{display:none!important}
+@media(min-width:700px){.dls{flex-direction:row;flex-wrap:wrap}.dls .btn{flex:1 1 200px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1><span class="dot"></span>AutoMix Studio</h1>
+  <div class="sub">ブラウザ完結版 — Logic Pro等のステムを自動ミックス（アップロード不要・全処理がこの端末内）</div>
+</header>
+
+<h2>1. ステム読み込み</h2>
+<div class="dz" id="dz" tabindex="0">
+  <b>Logic Pro等からステムを書き出して、ここにドロップ / タップして選択</b>
+  <div class="note">WAV・MP3・M4A(AAC)・FLAC 対応（AIFF/ALACはSafariのみ）<br>
+  内部で32-bit float・48 kHzに統一して解析・ミックスします</div>
+</div>
+<input type="file" id="fi" multiple accept=".wav,.aiff,.aif,.flac,.m4a,.mp3,.ogg,audio/*" hidden>
+<div class="panel" id="list" hidden></div>
+
+<h2>2. ミックス設定</h2>
+<div class="panel">
+  <fieldset data-key="genre"><legend>ジャンル</legend>
+    <div class="seg" data-o="pop,rock,electronic,hip-hop,ambient,acoustic" data-d="pop"></div>
+  </fieldset>
+  <fieldset data-key="loudness"><legend>ラウドネス</legend>
+    <div class="seg" data-o="streaming_safe,loud_demo" data-l="配信向け −14 LUFS,デモ向け −9 LUFS" data-d="streaming_safe"></div>
+  </fieldset>
+  <fieldset data-key="vocal"><legend>ボーカル優先度</legend>
+    <div class="seg" data-o="low,medium,high" data-l="低,中,高" data-d="medium"></div>
+  </fieldset>
+  <button class="btn primary" id="mixBtn" disabled style="width:100%;margin-top:6px">自動ミックスを実行</button>
+</div>
+
+<h2>3. レンダリング</h2>
+<div class="panel">
+  <div class="rail"><div class="fill" id="pf"></div></div>
+  <div class="stage" id="st">待機中…</div>
+  <div id="res" hidden>
+    <div class="stats" id="ms"></div>
+    <audio id="pv" controls preload="none"></audio>
+    <div class="dls">
+      <a class="btn primary" id="dWav" download="mixed_master.wav">mixed_master.wav（24-bit）</a>
+      <a class="btn" id="dMp3" download="mixed_master.mp3">mixed_master.mp3（320 kbps）</a>
+      <a class="btn" id="dRep" download="mix_report.md">mix_report.md</a>
+      <a class="btn" id="dSet" download="settings.json">settings.json</a>
+      <button class="btn" id="dZip">processed_stems.zip を生成</button>
+    </div>
+    <div class="report" id="rep"></div>
+  </div>
+  <div class="err" id="err" hidden></div>
+</div>
+
+<p class="hint" style="margin-top:24px"><a href="../" style="color:var(--amber)">← Web Apps Archive</a> ·
+<a href="https://github.com/weno-29/Web-apps-archive/tree/main/automix-studio" style="color:var(--amber)">ソースコード</a></p>
+<p class="hint">※ ファイルはどこにも送信されません。全ての解析・DSP・書き出しはブラウザ内（Web Audio API）で実行されます。長尺・多トラックほどメモリを使うため、目安は 〜16ステム / 〜8分 です。</p>
+</div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const SR=48000;
+const state={files:[],buffers:[],roles:[],result:null};
+
+/* ---------------- 役割分類（ファイル名 日英対応） ---------------- */
+const ROLES=["lead_vocal","backing_vocal","kick","snare","hi_hat","overheads","drum_bus",
+ "bass","electric_guitar","acoustic_guitar","piano","synth","pad","strings","fx","other"];
+const JP={lead_vocal:"リードVo",backing_vocal:"コーラス",kick:"キック",snare:"スネア",
+ hi_hat:"ハイハット",overheads:"OH/シンバル",drum_bus:"ドラム一式",bass:"ベース",
+ electric_guitar:"エレキG",acoustic_guitar:"アコギ",piano:"ピアノ",synth:"シンセ",
+ pad:"パッド",strings:"ストリングス",fx:"FX/アンビ",other:"その他"};
+const HINTS=[
+ ["kick","kick"],["bd","kick"],["バスドラ","kick"],["キック","kick"],
+ ["snare","snare"],["スネア","snare"],["sd","snare"],
+ ["hat","hi_hat"],["ハット","hi_hat"],["hh","hi_hat"],
+ ["overhead","overheads"],["oh","overheads"],["cymbal","overheads"],["シンバル","overheads"],
+ ["drum","drum_bus"],["ドラム","drum_bus"],
+ ["bass","bass"],["ベース","bass"],["808","bass"],
+ ["bgv","backing_vocal"],["cho","backing_vocal"],["コーラス","backing_vocal"],["harmony","backing_vocal"],
+ ["vocal","lead_vocal"],["vox","lead_vocal"],["ボーカル","lead_vocal"],["歌","lead_vocal"],["uta","lead_vocal"],["vo","lead_vocal"],
+ ["egt","electric_guitar"],["elec","electric_guitar"],["エレキ","electric_guitar"],
+ ["agt","acoustic_guitar"],["acoustic","acoustic_guitar"],["アコギ","acoustic_guitar"],
+ ["guitar","electric_guitar"],["gtr","electric_guitar"],["ギター","electric_guitar"],
+ ["piano","piano"],["ピアノ","piano"],["key","piano"],["鍵盤","piano"],["ep","piano"],["rhodes","piano"],
+ ["pad","pad"],["パッド","pad"],
+ ["string","strings"],["ストリングス","strings"],["vln","strings"],["cello","strings"],
+ ["synth","synth"],["シンセ","synth"],["lead","synth"],["arp","synth"],
+ ["fx","fx"],["riser","fx"],["amb","fx"],["sfx","fx"],["reverse","fx"],
+];
+const guess=n=>{n=n.toLowerCase();for(const[k,r]of HINTS)if(n.includes(k))return r;return"other"};
+
+/* ---------------- 役割別チェーン定義 ---------------- */
+/* peak: ゲインステージング目標(dBFS) / eq:[type,freq,gain,Q] / comp:{th,ra,at,re} */
+const P={
+ lead_vocal:{peak:-14,hpf:80,eq:[["peaking",300,-2,1],["peaking",3000,2,.9],["highshelf",10000,1.5,0]],comp:{th:-24,ra:3,at:.01,re:.15},pan:0,bus:"vocal"},
+ backing_vocal:{peak:-18,hpf:120,eq:[["peaking",3000,-1.5,1]],comp:{th:-26,ra:3.5,at:.01,re:.15},pan:.3,bus:"vocal"},
+ kick:{peak:-10,hpf:30,eq:[["peaking",60,2,1],["peaking",400,-3,1.2],["peaking",3500,1.5,1]],comp:{th:-18,ra:4,at:.005,re:.12},pan:0,bus:"drums"},
+ snare:{peak:-13,hpf:60,eq:[["peaking",200,1.5,1],["peaking",900,-2,1],["peaking",5000,2,1]],comp:{th:-20,ra:3,at:.003,re:.12},pan:0,bus:"drums"},
+ hi_hat:{peak:-20,hpf:200,eq:[["peaking",600,-2,1],["highshelf",9000,1,0]],comp:{th:-24,ra:2.5,at:.003,re:.1},pan:.25,bus:"drums"},
+ overheads:{peak:-18,hpf:300,eq:[["peaking",500,-2,1],["highshelf",12000,1.5,0]],comp:{th:-22,ra:2.5,at:.005,re:.15},pan:0,bus:"drums"},
+ drum_bus:{peak:-12,hpf:30,eq:[["peaking",60,1.5,1],["peaking",400,-2,1],["highshelf",8000,1,0]],comp:{th:-18,ra:3,at:.01,re:.15},pan:0,bus:"drums"},
+ bass:{peak:-12,hpf:30,eq:[["peaking",80,1.5,1],["peaking",250,-2,1],["peaking",800,1,1]],comp:{th:-20,ra:4,at:.01,re:.18},pan:0,bus:"music"},
+ electric_guitar:{peak:-16,hpf:90,eq:[["peaking",300,-2,1],["peaking",2500,1.5,1],["peaking",6000,-1,1]],comp:{th:-22,ra:2.5,at:.01,re:.15},pan:.5,bus:"music"},
+ acoustic_guitar:{peak:-17,hpf:90,eq:[["peaking",250,-2.5,1],["peaking",5000,1.5,1]],comp:{th:-22,ra:3,at:.008,re:.15},pan:.45,bus:"music"},
+ piano:{peak:-16,hpf:60,eq:[["peaking",300,-2,1],["peaking",4000,1,1]],comp:{th:-24,ra:2,at:.015,re:.2},pan:.2,bus:"music"},
+ synth:{peak:-17,hpf:70,eq:[["peaking",400,-2,1]],comp:{th:-24,ra:2,at:.01,re:.15},pan:.35,bus:"music"},
+ pad:{peak:-20,hpf:120,eq:[["peaking",300,-3,1],["peaking",2500,-1,1]],comp:{th:-26,ra:2,at:.03,re:.3},pan:.4,bus:"music"},
+ strings:{peak:-18,hpf:100,eq:[["peaking",300,-2,1]],comp:{th:-24,ra:2,at:.02,re:.25},pan:.3,bus:"music"},
+ fx:{peak:-22,hpf:150,eq:[],comp:null,pan:.6,bus:"music"},
+ other:{peak:-17,hpf:60,eq:[["peaking",300,-1.5,1]],comp:{th:-24,ra:2,at:.01,re:.15},pan:0,bus:"music"},
+};
+const GENRE={
+ pop:{},rock:{drums:1,music:.5},electronic:{kickBoost:1,drums:1},
+ "hip-hop":{kickBoost:1.5,bassBoost:1},ambient:{softer:!0},acoustic:{softer:!0}};
+
+/* ---------------- UI: 読み込み ---------------- */
+const dz=$("#dz"),fi=$("#fi");
+dz.addEventListener("click",()=>fi.click());
+dz.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" ")fi.click()});
+["dragover","dragenter"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("drag")}));
+["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove("drag")}));
+dz.addEventListener("drop",e=>addFiles(e.dataTransfer.files));
+fi.addEventListener("change",()=>addFiles(fi.files));
+
+let decodeCtx=null;
+async function addFiles(list){
+  if(!decodeCtx)decodeCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:SR});
+  const box=$("#list");box.hidden=!1;
+  for(const f of list){
+    const row=document.createElement("div");row.className="filerow";
+    row.innerHTML=`<span class="nm"></span><span class="q">デコード中…</span>`;
+    row.querySelector(".nm").textContent=f.name;
+    box.append(row);
+    try{
+      const buf=await decodeCtx.decodeAudioData(await f.arrayBuffer());
+      const idx=state.files.length;
+      state.files.push(f.name);state.buffers.push(buf);state.roles.push(guess(f.name));
+      const pk=peakDb(buf);
+      row.querySelector(".q").textContent=
+        `${buf.numberOfChannels===2?"STEREO":"MONO"} · ${buf.duration.toFixed(1)}s · peak ${pk.toFixed(1)} dBFS`;
+      const sel=document.createElement("select");
+      sel.setAttribute("aria-label","役割: "+f.name);
+      for(const r of ROLES){const o=document.createElement("option");o.value=r;o.textContent=JP[r];
+        if(r===state.roles[idx])o.selected=!0;sel.append(o)}
+      sel.addEventListener("change",()=>state.roles[idx]=sel.value);
+      row.append(sel);
+    }catch(e){
+      row.querySelector(".q").innerHTML=`<span class="bad">デコード不可（このブラウザ非対応の形式です — WAV/MP3/M4A推奨）</span>`;
+    }
+  }
+  $("#mixBtn").disabled=state.buffers.length===0;
+}
+function peakDb(buf){let p=1e-9;for(let c=0;c<buf.numberOfChannels;c++){const d=buf.getChannelData(c);
+  for(let i=0;i<d.length;i+=4){const a=Math.abs(d[i]);if(a>p)p=a}}return 20*Math.log10(p)}
+
+/* ---------------- 設定セグメント ---------------- */
+document.querySelectorAll(".seg").forEach(seg=>{
+  const o=seg.dataset.o.split(","),l=(seg.dataset.l||seg.dataset.o).split(",");
+  const name=seg.closest("fieldset").dataset.key;
+  o.forEach((opt,i)=>{const lab=document.createElement("label");
+    const r=document.createElement("input");r.type="radio";r.name=name;r.value=opt;
+    if(opt===seg.dataset.d)r.checked=!0;
+    const sp=document.createElement("span");sp.textContent=l[i];
+    lab.append(r,sp);seg.append(lab)})});
+const getSet=()=>({
+  genre:document.querySelector('input[name=genre]:checked').value,
+  loudness:document.querySelector('input[name=loudness]:checked').value,
+  vocal:document.querySelector('input[name=vocal]:checked').value});
+
+/* ---------------- ミックス実行 ---------------- */
+$("#mixBtn").addEventListener("click",()=>run().catch(e=>{
+  $("#err").hidden=!1;$("#err").textContent="エラー: "+(e&&e.message||e);
+  prog(0,"失敗しました");}));
+
+function prog(p,t){$("#pf").style.width=Math.round(p*100)+"%";$("#st").textContent=t}
+
+function buildChain(ctx,buf,role,i,set,rep,forStem){
+  const p=P[role],g=GENRE[set.genre]||{};
+  const src=ctx.createBufferSource();src.buffer=buf;
+  /* ゲインステージング */
+  const pk=peakDb(buf);
+  let target=p.peak;
+  if(g.kickBoost&&role==="kick")target+=g.kickBoost;
+  if(g.bassBoost&&role==="bass")target+=g.bassBoost;
+  const trim=ctx.createGain();
+  const trimDb=Math.max(-24,Math.min(24,target-pk));
+  trim.gain.value=Math.pow(10,trimDb/20);
+  rep.push(`- ${state.files[i]} → ${JP[role]} / trim ${trimDb>=0?"+":""}${trimDb.toFixed(1)} dB（peak ${pk.toFixed(1)}→目標 ${target} dBFS）`);
+  /* HPF + EQ */
+  let node=src;src.connect(trim);node=trim;
+  const hpf=ctx.createBiquadFilter();hpf.type="highpass";hpf.frequency.value=p.hpf;hpf.Q.value=.707;
+  node.connect(hpf);node=hpf;
+  const soft=g.softer?0.6:1;
+  for(const[t,f,gv,q]of p.eq){const bq=ctx.createBiquadFilter();bq.type=t;bq.frequency.value=f;
+    bq.gain.value=gv*soft;if(q)bq.Q.value=q;node.connect(bq);node=bq}
+  /* コンプ */
+  if(p.comp&&!(g.softer&&role==="fx")){const c=ctx.createDynamicsCompressor();
+    c.threshold.value=p.comp.th+(g.softer?4:0);c.ratio.value=p.comp.ra;c.knee.value=6;
+    c.attack.value=p.comp.at;c.release.value=p.comp.re;node.connect(c);node=c}
+  /* パン（同役割で左右交互） */
+  const pan=ctx.createStereoPanner?ctx.createStereoPanner():null;
+  if(pan){let v=0;
+    if(p.pan&&buf.numberOfChannels===1){const side=(i%2===0)?1:-1;v=p.pan*side}
+    pan.pan.value=forStem?0:v;node.connect(pan);node=pan;
+    if(v)rep.push(`  pan ${v>0?"R":"L"}${Math.round(Math.abs(v)*100)}`);}
+  return{src,out:node};
+}
+
+async function run(){
+  $("#err").hidden=!0;$("#res").hidden=!0;
+  const set=getSet();const rep=[];
+  rep.push(`# Mix Report — AutoMix Studio ブラウザ完結版`,``,
+    `- 日時: ${new Date().toLocaleString("ja-JP")}`,
+    `- ステム数: ${state.buffers.length} / ジャンル: ${set.genre} / ラウドネス: ${set.loudness==="streaming_safe"?"-14 LUFS":"-9 LUFS"} / Vo優先度: ${set.vocal}`,``,
+    `## ゲインステージング & チェーン`);
+  prog(.05,"チェーン構築中…");
+  const len=Math.max(...state.buffers.map(b=>b.duration));
+  const ctx=new OfflineAudioContext(2,Math.ceil(len*SR)+SR,SR);
+  /* バス */
+  const bus={drums:ctx.createGain(),music:ctx.createGain(),vocal:ctx.createGain()};
+  const g=GENRE[set.genre]||{};
+  bus.drums.gain.value=Math.pow(10,((g.drums||0))/20);
+  bus.music.gain.value=Math.pow(10,((g.music||0)*-1)/20);
+  const vAdj=set.vocal==="high"?1.5:set.vocal==="low"?-1.5:0;
+  bus.vocal.gain.value=Math.pow(10,vAdj/20);
+  if(vAdj)rep.push(`- ボーカルバス ${vAdj>0?"+":""}${vAdj} dB（優先度 ${set.vocal}）`);
+  const busComp={};
+  for(const k of Object.keys(bus)){const c=ctx.createDynamicsCompressor();
+    c.threshold.value=k==="drums"?-16:-20;c.ratio.value=k==="drums"?2.5:1.8;
+    c.knee.value=10;c.attack.value=.02;c.release.value=.2;bus[k].connect(c);busComp[k]=c}
+  /* マスター: グルー → ソフトサチュレーション → 出力 */
+  const glue=ctx.createDynamicsCompressor();
+  glue.threshold.value=-18;glue.ratio.value=1.8;glue.knee.value=12;glue.attack.value=.03;glue.release.value=.25;
+  const shaper=ctx.createWaveShaper();
+  {const n=2048,cur=new Float32Array(n),k=1.15;
+   for(let i=0;i<n;i++){const x=i/(n-1)*2-1;cur[i]=Math.tanh(k*x)/Math.tanh(k)}shaper.curve=cur;shaper.oversample="2x"}
+  const pre=ctx.createGain();pre.gain.value=Math.pow(10,-6/20); /* サミングヘッドルーム */
+  for(const k of Object.keys(busComp))busComp[k].connect(pre);
+  pre.connect(glue);glue.connect(shaper);shaper.connect(ctx.destination);
+  /* 各ステム */
+  const srcs=[];
+  state.buffers.forEach((b,i)=>{const role=state.roles[i];
+    const{src,out}=buildChain(ctx,b,role,i,set,rep,false);
+    out.connect(bus[P[role].bus]);srcs.push(src)});
+  srcs.forEach(s=>s.start(0));
+  rep.push(``,`## マスターバス`,`- サミングヘッドルーム -6 dB → グルーコンプ(1.8:1, th -18) → tanhサチュレーション → ラウドネス正規化 → ルックアヘッドリミッタ`);
+
+  prog(.15,"レンダリング中…（曲の長さに応じて数十秒かかります）");
+  const rendered=await ctx.startRendering();
+  /* ラウドネス正規化 + リミッタ（JS実装） */
+  prog(.7,"ラウドネス測定（BS.1770近似）…");
+  const L0=rendered.getChannelData(0),R0=rendered.numberOfChannels>1?rendered.getChannelData(1):L0;
+  const lufs1=integratedLoudness([L0,R0],SR);
+  const target=set.loudness==="streaming_safe"?-14:-9;
+  const ceil=Math.pow(10,-1.5/20);
+  /* リミッタ後に再測定し、目標に収束するまでゲインを補正（最大4回） */
+  let gainDb=target-lufs1,L,R;
+  for(let it=0;it<4;it++){
+    prog(.75+it*.04,`ラウドネス調整 ${it+1}/4…`);
+    L=Float32Array.from(L0);R=(R0===L0)?Float32Array.from(L0):Float32Array.from(R0);
+    limiter(L,R,Math.pow(10,gainDb/20),ceil,SR);
+    const m=integratedLoudness([L,R],SR);
+    if(Math.abs(m-target)<0.3)break;
+    gainDb+=Math.min(6,target-m);
+  }
+  const lufs2=integratedLoudness([L,R],SR);
+  const tp=truePeakDb(L,R);
+  rep.push(``,`## 結果`,`- 統合ラウドネス: ${lufs2.toFixed(2)} LUFS（目標 ${target}）`,
+    `- ピーク（4xオーバーサンプル近似）: ${tp.toFixed(2)} dBTP`,
+    `- 長さ: ${(L.length/SR).toFixed(1)} 秒 / 48 kHz / 24-bit WAV`);
+  prog(.9,"WAV書き出し…");
+  const wav=encodeWav24(L,R,SR);
+  const wavUrl=URL.createObjectURL(new Blob([wav],{type:"audio/wav"}));
+  $("#dWav").href=wavUrl;$("#pv").src=wavUrl;
+  /* MP3 */
+  if(window.lamejs){try{
+    prog(.95,"MP3エンコード中…");
+    const mp3=encodeMp3(L,R,SR);
+    $("#dMp3").href=URL.createObjectURL(new Blob(mp3,{type:"audio/mpeg"}));
+    $("#dMp3").style.display="";
+    $("#dMp3").textContent="mixed_master.mp3（320 kbps）";
+  }catch(e){mp3Off("MP3エンコードに失敗しました")}}
+  else mp3Off("MP3エンコーダを読み込めませんでした（通信環境を確認して再読み込み）");
+  /* レポート/設定 */
+  const repText=rep.join("\n");
+  $("#dRep").href=URL.createObjectURL(new Blob([repText],{type:"text/markdown"}));
+  $("#dSet").href=URL.createObjectURL(new Blob([JSON.stringify({
+    engine:"automix-browser-0.1.0",sample_rate:SR,settings:set,
+    stems:state.files.map((f,i)=>({file:f,role:state.roles[i]}))},null,2)],{type:"application/json"}));
+  $("#rep").textContent=repText;
+  $("#ms").textContent=`MASTER ${lufs2.toFixed(2)} LUFS · ${tp.toFixed(2)} dBTP · ${(L.length/SR).toFixed(0)} s`;
+  state.result={set};
+  $("#res").hidden=!1;prog(1,"完了");
+}
+
+
+/* 無圧縮ZIPライター（外部ライブラリ不要。WAVはほぼ圧縮できないためstoreで十分） */
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(u8){let c=0xFFFFFFFF;for(let i=0;i<u8.length;i++)c=CRC_T[(c^u8[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+function makeZip(files){ /* files: [{name, data:ArrayBuffer}] */
+  const enc=new TextEncoder(),parts=[],central=[];let off=0;
+  for(const f of files){
+    const name=enc.encode(f.name),data=new Uint8Array(f.data),crc=crc32(data);
+    const h=new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,!0);h.setUint16(4,20,!0);h.setUint16(6,0x0800,!0);h.setUint16(8,0,!0);
+    h.setUint32(14,crc,!0);h.setUint32(18,data.length,!0);h.setUint32(22,data.length,!0);
+    h.setUint16(26,name.length,!0);
+    parts.push(h.buffer,name,data);
+    const c=new DataView(new ArrayBuffer(46));
+    c.setUint32(0,0x02014b50,!0);c.setUint16(4,20,!0);c.setUint16(6,20,!0);c.setUint16(8,0x0800,!0);
+    c.setUint32(16,crc,!0);c.setUint32(20,data.length,!0);c.setUint32(24,data.length,!0);
+    c.setUint16(28,name.length,!0);c.setUint32(42,off,!0);
+    central.push(c.buffer,name);
+    off+=30+name.length+data.length;
+  }
+  const csize=central.reduce((a,b)=>a+(b.byteLength),0);
+  const e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,!0);e.setUint16(8,files.length,!0);e.setUint16(10,files.length,!0);
+  e.setUint32(12,csize,!0);e.setUint32(16,off,!0);
+  return new Blob([...parts,...central,e.buffer],{type:"application/zip"});
+}
+
+/* ---------------- processed_stems.zip（オンデマンド） ---------------- */
+$("#dZip").addEventListener("click",async()=>{
+  const btn=$("#dZip");btn.disabled=!0;btn.textContent="ステム処理中…";
+  try{
+    const zipFiles=[];const set=state.result.set;
+    for(let i=0;i<state.buffers.length;i++){
+      btn.textContent=`ステム処理中… ${i+1}/${state.buffers.length}`;
+      const b=state.buffers[i];
+      const c=new OfflineAudioContext(2,Math.ceil(b.duration*SR)+SR,SR);
+      const{src,out}=buildChain(c,b,state.roles[i],i,set,[],true);
+      out.connect(c.destination);src.start(0);
+      const r=await c.startRendering();
+      const L=r.getChannelData(0),R=r.numberOfChannels>1?r.getChannelData(1):L;
+      zipFiles.push({name:state.files[i].replace(/\.[^.]+$/,"")+`_${state.roles[i]}.wav`,data:encodeWav16(L,R,SR)});
+    }
+    const blob=makeZip(zipFiles);
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+    a.download="processed_stems.zip";a.click();
+    btn.textContent="processed_stems.zip を生成";btn.disabled=!1;
+  }catch(e){btn.textContent="ZIP生成に失敗（もう一度タップ）";btn.disabled=!1;$("#err").hidden=!1;$("#err").textContent="ZIP生成エラー: "+(e&&e.message||e)}
+});
+
+function mp3Off(msg){const a=$("#dMp3");a.removeAttribute("href");a.textContent="MP3: "+msg;a.style.opacity=".5";a.style.pointerEvents="none"}
+/* ---------------- DSPユーティリティ ---------------- */
+/* BS.1770 K特性（48 kHz係数）+ ゲーティング */
+function integratedLoudness(chs,sr){
+  const b1=[1.53512485958697,-2.69169618940638,1.19839281085285],
+        a1=[1,-1.69065929318241,0.73248077421585],
+        b2=[1,-2,1],a2=[1,-1.99004745483398,0.99007225036621];
+  const N=chs[0].length,block=Math.round(.4*sr),hop=Math.round(.1*sr);
+  const filt=chs.map(d=>{
+    const y=new Float32Array(N);
+    let x1=0,x2=0,y1=0,y2=0;
+    for(let i=0;i<N;i++){const x=d[i];
+      const v=b1[0]*x+b1[1]*x1+b1[2]*x2-a1[1]*y1-a1[2]*y2;
+      x2=x1;x1=x;y2=y1;y1=v;y[i]=v}
+    let X1=0,X2=0,Y1=0,Y2=0;
+    for(let i=0;i<N;i++){const x=y[i];
+      const v=b2[0]*x+b2[1]*X1+b2[2]*X2-a2[1]*Y1-a2[2]*Y2;
+      X2=X1;X1=x;Y2=Y1;Y1=v;y[i]=v}
+    return y});
+  const blocks=[];
+  for(let s=0;s+block<=N;s+=hop){
+    let ms=0;
+    for(const y of filt){let acc=0;for(let i=s;i<s+block;i++)acc+=y[i]*y[i];ms+=acc/block}
+    blocks.push(ms)}
+  if(!blocks.length)return -70;
+  const lk=ms=>-.691+10*Math.log10(ms+1e-12);
+  let pass=blocks.filter(ms=>lk(ms)>-70);
+  if(!pass.length)return -70;
+  const mean1=pass.reduce((a,b)=>a+b,0)/pass.length;
+  const gate=lk(mean1)-10;
+  pass=pass.filter(ms=>lk(ms)>gate);
+  if(!pass.length)return lk(mean1);
+  return lk(pass.reduce((a,b)=>a+b,0)/pass.length);
+}
+/* ルックアヘッドリミッタ（5ms / release 100ms） */
+function limiter(L,R,gain,ceil,sr){
+  const N=L.length,look=Math.round(.005*sr);
+  const need=new Float32Array(N);
+  for(let i=0;i<N;i++){const a=Math.max(Math.abs(L[i]),Math.abs(R[i]))*gain;
+    need[i]=a>ceil?ceil/a:1}
+  /* スライディング最小（deque） */
+  const win=new Float32Array(N);const q=new Int32Array(N);let h=0,t=0;
+  for(let i=0;i<N;i++){
+    while(t>h&&need[q[t-1]]>=need[i])t--;
+    q[t++]=i;
+    if(q[h]<=i-look)h++;
+    win[i]=need[q[h]];}
+  const rel=Math.exp(-1/(0.1*sr));let g=1;
+  for(let i=0;i<N;i++){
+    const w=win[Math.min(N-1,i+look-1)];
+    if(w<g)g=w;                       /* 即時アタック */
+    else g=g*rel+(1-rel)*w;           /* 指数リリース */
+    const gg=g*gain;
+    L[i]*=gg;R[i]*=gg;}
+}
+/* 4x線形補間の簡易トゥルーピーク */
+function truePeakDb(L,R){let p=1e-9;
+  for(const d of[L,R])for(let i=1;i<d.length;i++){
+    const a=d[i-1],b=d[i];
+    for(let k=0;k<4;k++){const v=Math.abs(a+(b-a)*k/4);if(v>p)p=v}}
+  return 20*Math.log10(p)}
+/* テスト用に公開 */
+window.__automix={integratedLoudness,limiter,truePeakDb,encodeWav24};
+/* WAVエンコード */
+function wavHeader(dv,dataLen,sr,bits){
+  const bytes=bits/8;
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i))};
+  w(0,"RIFF");dv.setUint32(4,36+dataLen,!0);w(8,"WAVE");w(12,"fmt ");
+  dv.setUint32(16,16,!0);dv.setUint16(20,1,!0);dv.setUint16(22,2,!0);
+  dv.setUint32(24,sr,!0);dv.setUint32(28,sr*2*bytes,!0);
+  dv.setUint16(32,2*bytes,!0);dv.setUint16(34,bits,!0);w(36,"data");dv.setUint32(40,dataLen,!0)}
+function encodeWav24(L,R,sr){
+  const N=L.length,data=N*2*3,buf=new ArrayBuffer(44+data),dv=new DataView(buf);
+  wavHeader(dv,data,sr,24);let o=44;
+  for(let i=0;i<N;i++){
+    for(const d of[L,R]){let v=Math.max(-1,Math.min(1,d[i]));v=Math.round(v*8388607);
+      dv.setUint8(o++,v&255);dv.setUint8(o++,(v>>8)&255);dv.setUint8(o++,(v>>16)&255)}}
+  return buf}
+function encodeWav16(L,R,sr){
+  const N=L.length,data=N*2*2,buf=new ArrayBuffer(44+data),dv=new DataView(buf);
+  wavHeader(dv,data,sr,16);let o=44;
+  for(let i=0;i<N;i++){for(const d of[L,R]){let v=Math.max(-1,Math.min(1,d[i]));
+    dv.setInt16(o,v*32767,!0);o+=2}}
+  return buf}
+/* MP3 320kbps（lamejs） */
+function encodeMp3(L,R,sr){
+  const enc=new lamejs.Mp3Encoder(2,sr,320),N=L.length,CH=1152,out=[];
+  const l16=new Int16Array(CH),r16=new Int16Array(CH);
+  for(let i=0;i<N;i+=CH){
+    const n=Math.min(CH,N-i);
+    for(let j=0;j<n;j++){l16[j]=Math.max(-32768,Math.min(32767,L[i+j]*32767));
+      r16[j]=Math.max(-32768,Math.min(32767,R[i+j]*32767))}
+    const d=enc.encodeBuffer(l16.subarray(0,n),r16.subarray(0,n));
+    if(d.length)out.push(new Uint8Array(d))}
+  const end=enc.flush();if(end.length)out.push(new Uint8Array(end));
+  return out}
+</script>
+</body>
+</html>
