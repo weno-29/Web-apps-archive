@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>英検準1級・1級 合格トレーナー</title>
+<meta name="description" content="英検準1級・1級の試験ガイド、単語カード、語彙クイズ、ライティング語数カウンター、二次試験対策をまとめた学習Webアプリ">
+<meta name="theme-color" content="#1c2b3a">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="英検トレーナー">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Libre+Baskerville:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1c2b3a;        /* 墨紺 */
+  --paper:#f7f5ef;      /* 和紙 */
+  --card:#fffdf8;
+  --akapen:#c73e3a;     /* 朱・赤ペン */
+  --akapen-soft:#f3ded9;
+  --gold:#b8912f;       /* 1級バッジ */
+  --sub:#5b6b7a;        /* 藍鼠 */
+  --line:#d8d2c4;
+  --ok:#2e7d5b;
+  --serif:"Shippori Mincho",serif;
+  --sans:"Zen Kaku Gothic New",sans-serif;
+  --en:"Libre Baskerville",Georgia,serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.75;font-size:15px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- header ---------- */
+header{border-bottom:3px double var(--ink);background:var(--card);padding:26px 20px 20px}
+.hwrap{max-width:1000px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+h1{font-family:var(--serif);font-weight:800;font-size:clamp(22px,4vw,32px);letter-spacing:.06em}
+h1 .en{font-family:var(--en);font-style:italic;font-size:.55em;color:var(--sub);display:block;letter-spacing:.12em;margin-top:2px}
+.lv-toggle{display:flex;border:1.5px solid var(--ink);border-radius:999px;overflow:hidden}
+.lv-toggle button{border:0;background:transparent;padding:9px 22px;font-family:var(--serif);font-size:15px;font-weight:600;cursor:pointer;color:var(--ink);transition:background .15s}
+.lv-toggle button.active{background:var(--ink);color:var(--paper)}
+.lv-toggle button.g1.active{background:var(--gold)}
+nav{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.nwrap{max-width:1000px;margin:0 auto;display:flex;overflow-x:auto}
+nav button{border:0;background:transparent;padding:13px 18px;font-family:var(--sans);font-size:14px;font-weight:500;color:var(--sub);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent}
+nav button.active{color:var(--akapen);border-bottom-color:var(--akapen);font-weight:700}
+nav button:focus-visible,.lv-toggle button:focus-visible,button:focus-visible{outline:2px solid var(--akapen);outline-offset:2px}
+
+main{max-width:1000px;margin:0 auto;padding:30px 20px 80px}
+section{display:none}
+section.show{display:block;animation:fade .3s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+h2{font-family:var(--serif);font-size:22px;font-weight:800;letter-spacing:.05em;margin:34px 0 14px;padding-left:14px;border-left:5px solid var(--akapen)}
+h2:first-child{margin-top:0}
+h3{font-family:var(--serif);font-size:17px;font-weight:600;margin:22px 0 8px}
+p{margin-bottom:10px}
+.note{font-size:13px;color:var(--sub)}
+.lvtag{display:inline-block;font-family:var(--serif);font-size:12px;font-weight:600;border:1.2px solid var(--ink);border-radius:3px;padding:1px 8px;margin-right:6px;vertical-align:middle}
+.lvtag.g1{border-color:var(--gold);color:var(--gold)}
+
+table{width:100%;border-collapse:collapse;background:var(--card);margin:10px 0 18px;font-size:14px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:var(--ink);color:var(--paper);font-family:var(--serif);font-weight:600;letter-spacing:.05em}
+td b{color:var(--akapen)}
+.score{font-family:var(--en);font-size:1.05em}
+
+.box{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:18px 20px;margin:12px 0}
+.box.red{border-left:5px solid var(--akapen)}
+ul.tips{list-style:none}
+ul.tips li{padding-left:1.5em;position:relative;margin-bottom:7px}
+ul.tips li::before{content:"✎";color:var(--akapen);position:absolute;left:0}
+
+/* ---------- 単語カード (ring-bound card) ---------- */
+.cardzone{display:flex;flex-direction:column;align-items:center;margin-top:18px}
+.wcard{width:min(480px,92vw);height:280px;perspective:1200px;cursor:pointer}
+.wcard-inner{position:relative;width:100%;height:100%;transition:transform .5s;transform-style:preserve-3d}
+.wcard.flipped .wcard-inner{transform:rotateX(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;background:var(--card);border:1.5px solid var(--ink);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;box-shadow:0 3px 0 #d9d3c5,0 6px 0 #cfc8b8}
+.face::before{content:"";position:absolute;top:16px;left:16px;width:22px;height:22px;border:2.5px solid var(--sub);border-radius:50%;background:var(--paper)} /* リング穴 */
+.face.back{transform:rotateX(180deg)}
+.face .word{font-family:var(--en);font-size:clamp(28px,6vw,40px);letter-spacing:.02em}
+.face .pos{font-family:var(--en);font-style:italic;color:var(--sub);margin-top:6px}
+.face .jp{font-family:var(--serif);font-size:clamp(22px,5vw,30px);font-weight:600;color:var(--akapen)}
+.face .ex{font-family:var(--en);font-style:italic;font-size:14px;color:var(--sub);margin-top:14px;text-align:center}
+.face .hint{position:absolute;bottom:12px;font-size:11px;color:var(--sub)}
+.cardctrl{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;justify-content:center}
+.btn{font-family:var(--sans);font-size:14px;font-weight:500;border:1.5px solid var(--ink);background:var(--card);color:var(--ink);border-radius:6px;padding:9px 20px;cursor:pointer;transition:background .15s}
+.btn:hover{background:var(--ink);color:var(--paper)}
+.btn.primary{background:var(--akapen);border-color:var(--akapen);color:#fff}
+.btn.primary:hover{background:#a83230}
+.counter{font-family:var(--en);color:var(--sub);margin-top:10px;font-size:13px}
+
+/* ---------- クイズ (赤ペン ◯✕) ---------- */
+.qbox{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:24px;margin-top:16px;position:relative}
+.qword{font-family:var(--en);font-size:clamp(26px,5vw,36px);text-align:center;margin:8px 0 20px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:560px){.opts{grid-template-columns:1fr}}
+.opts button{border:1.5px solid var(--line);background:var(--paper);border-radius:6px;padding:13px;font-size:15px;font-family:var(--serif);cursor:pointer;text-align:center;transition:border-color .15s}
+.opts button:hover:not(:disabled){border-color:var(--ink)}
+.opts button:disabled{cursor:default;opacity:.85}
+.opts button.correct{border-color:var(--akapen);background:#fdf6f0}
+.opts button.wrong{border-color:var(--sub);background:#eee}
+.mark{position:absolute;top:6px;right:18px;font-size:64px;font-family:var(--serif);color:var(--akapen);pointer-events:none;line-height:1;text-shadow:1px 1px 0 rgba(199,62,58,.25);transform:rotate(-8deg);animation:stamp .25s ease}
+@keyframes stamp{from{transform:scale(1.6) rotate(-8deg);opacity:0}to{transform:scale(1) rotate(-8deg);opacity:1}}
+.qprog{font-family:var(--en);color:var(--sub);font-size:13px}
+.result{text-align:center;padding:20px 0}
+.result .big{font-family:var(--serif);font-size:40px;font-weight:800;color:var(--akapen)}
+.review{margin-top:14px;font-size:14px}
+.review li{margin-bottom:4px}
+.review .en{font-family:var(--en)}
+
+/* ---------- writing ---------- */
+textarea{width:100%;min-height:190px;border:1.5px solid var(--line);border-radius:6px;padding:14px;font-family:var(--en);font-size:15px;line-height:1.7;background:var(--card);resize:vertical}
+textarea:focus{outline:2px solid var(--akapen);outline-offset:1px}
+.wc{font-family:var(--en);font-size:14px;margin-top:6px}
+.wc .num{font-size:20px;font-weight:700}
+.wc.in{color:var(--ok)}
+.wc.out{color:var(--akapen)}
+select{font-family:var(--sans);font-size:14px;padding:8px 12px;border:1.5px solid var(--ink);border-radius:6px;background:var(--card)}
+.phrase{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;font-size:14px}
+@media(max-width:560px){.phrase{grid-template-columns:1fr}}
+.phrase div{padding:6px 0;border-bottom:1px dashed var(--line)}
+.phrase .en{font-family:var(--en)}
+.phrase .jp{color:var(--sub);font-size:13px}
+
+/* ---------- progress ---------- */
+.hist td{font-size:14px}
+.empty{color:var(--sub);font-size:14px;padding:14px;text-align:center;border:1px dashed var(--line);border-radius:6px}
+footer{border-top:1px solid var(--line);text-align:center;padding:22px;font-size:12px;color:var(--sub)}
+a{color:var(--akapen)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hwrap">
+    <h1>英検 合格トレーナー<span class="en">EIKEN Grade Pre-1 &amp; Grade 1 — Study Companion</span></h1>
+    <div class="lv-toggle" role="group" aria-label="級の切り替え">
+      <button id="lvP1" class="active" onclick="setLevel('p1')">準1級</button>
+      <button id="lvG1" class="g1" onclick="setLevel('g1')">1級</button>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="nwrap">
+    <button class="active" data-tab="guide" onclick="setTab('guide')">試験ガイド</button>
+    <button data-tab="cards" onclick="setTab('cards')">単語カード</button>
+    <button data-tab="quiz" onclick="setTab('quiz')">語彙クイズ</button>
+    <button data-tab="writing" onclick="setTab('writing')">ライティング</button>
+    <button data-tab="speaking" onclick="setTab('speaking')">二次試験</button>
+    <button data-tab="progress" onclick="setTab('progress')">学習記録</button>
+  </div>
+</nav>
+
+<main>
+
+<!-- ================= 試験ガイド ================= -->
+<section id="guide" class="show">
+  <h2>合格基準（英検CSEスコア）</h2>
+  <p>合否は素点ではなく英検CSEスコアで判定されます。基準スコアは固定で、素点からの換算は回ごとに統計的手法（項目応答理論）で調整されます。</p>
+  <table>
+    <tr><th>級</th><th>一次試験 合格基準</th><th>二次試験 合格基準</th><th>CEFR目安</th></tr>
+    <tr><td><span class="lvtag">準1級</span></td><td class="score"><b>1792</b> / 2250</td><td class="score"><b>512</b> / 750</td><td>B2</td></tr>
+    <tr><td><span class="lvtag g1">1級</span></td><td class="score"><b>2028</b> / 2550</td><td class="score"><b>602</b> / 850</td><td>C1</td></tr>
+  </table>
+  <p class="note">※各技能均等配点（準1級：R/W/L 各750点、1級：R/W/L 各850点）。目安として各技能で正答率7割程度、安全圏は8割が推奨されます。</p>
+
+  <h2>一次試験の構成（2024年度リニューアル後）</h2>
+  <h3><span class="lvtag">準1級</span> 筆記90分＋リスニング約30分</h3>
+  <table>
+    <tr><th>大問</th><th>形式</th><th>問数・語数</th></tr>
+    <tr><td>1</td><td>短文の語句空所補充（語彙）</td><td>18問</td></tr>
+    <tr><td>2</td><td>長文の語句空所補充</td><td>6問</td></tr>
+    <tr><td>3</td><td>長文の内容一致選択</td><td>7問</td></tr>
+    <tr><td>4</td><td><b>英文要約</b>（2024年度から新設）</td><td>約200語の英文 → <b>60〜70語</b>で要約</td></tr>
+    <tr><td>5</td><td>意見論述（英作文）</td><td>120〜150語</td></tr>
+    <tr><td>—</td><td>リスニング（会話・文・Real-Life形式）</td><td>29問・放送は1回のみ</td></tr>
+  </table>
+  <h3><span class="lvtag g1">1級</span> 筆記100分＋リスニング約35分</h3>
+  <table>
+    <tr><th>大問</th><th>形式</th><th>問数・語数</th></tr>
+    <tr><td>1</td><td>短文の語句空所補充（語彙）</td><td>22問</td></tr>
+    <tr><td>2</td><td>長文の語句空所補充</td><td>6問</td></tr>
+    <tr><td>3</td><td>長文の内容一致選択</td><td>7問</td></tr>
+    <tr><td>4</td><td><b>英文要約</b>（2024年度から新設）</td><td>約300語の英文 → <b>90〜110語</b>で要約</td></tr>
+    <tr><td>5</td><td>意見論述（英作文）</td><td>200〜240語</td></tr>
+    <tr><td>—</td><td>リスニング（会話・文・Real-Life・インタビュー）</td><td>27問・放送は1回のみ</td></tr>
+  </table>
+
+  <div class="box red">
+    <h3 style="margin-top:0">リニューアルの要点</h3>
+    <ul class="tips">
+      <li>2024年度第1回から準1級・1級ともに<b>要約問題が追加</b>され、その分リーディングの問題数が削減されました。</li>
+      <li>要約は「内容・構成・語彙・文法」の4観点×各0〜4点＝16点満点。意見論述と合わせてライティングは32点満点です。</li>
+      <li>ライティングはCSEスコアへの寄与効率が高く、W重視の得点戦略が合否を左右します。</li>
+    </ul>
+  </div>
+
+  <h2>語彙レベルの目安</h2>
+  <table>
+    <tr><th>級</th><th>必要語彙数（目安）</th><th>レベル感</th></tr>
+    <tr><td>準1級</td><td>約7,500〜9,000語</td><td>大学中級程度・難関大入試レベル</td></tr>
+    <tr><td>1級</td><td>約10,000〜15,000語</td><td>大学上級程度・時事、学術語彙を含む</td></tr>
+  </table>
+
+  <h2>参考資料（一次情報）</h2>
+  <ul class="tips">
+    <li>日本英語検定協会「準1級の過去問・試験内容」 https://www.eiken.or.jp/eiken/exam/grade_p1/</li>
+    <li>日本英語検定協会「1級の過去問・試験内容」 https://www.eiken.or.jp/eiken/exam/grade_1/</li>
+    <li>日本英語検定協会「英検CSEスコアでの合否判定方法について」 https://www.eiken.or.jp/eiken/result/eiken-cse_admission.html</li>
+    <li>日本英語検定協会「2024年度 問題形式リニューアル」 https://www.eiken.or.jp/eiken/info/2023/pdf/20230706_info_eiken.pdf</li>
+  </ul>
+</section>
+
+<!-- ================= 単語カード ================= -->
+<section id="cards">
+  <h2>単語カード <span class="note" id="cardLvNote"></span></h2>
+  <p class="note">カードをクリック（またはスペースキー）で反転します。←→キーで前後に移動できます。</p>
+  <div class="cardzone">
+    <div class="wcard" id="wcard" tabindex="0" role="button" aria-label="単語カード。クリックで意味を表示">
+      <div class="wcard-inner">
+        <div class="face front">
+          <div class="word" id="cw"></div>
+          <div class="pos" id="cp"></div>
+          <div class="hint">クリックで意味を表示</div>
+        </div>
+        <div class="face back">
+          <div class="jp" id="cj"></div>
+          <div class="ex" id="ce"></div>
+          <div class="hint">クリックで英語に戻る</div>
+        </div>
+      </div>
+    </div>
+    <div class="counter" id="ccount"></div>
+    <div class="cardctrl">
+      <button class="btn" onclick="moveCard(-1)">← 前へ</button>
+      <button class="btn primary" onclick="shuffleCards()">シャッフル</button>
+      <button class="btn" onclick="moveCard(1)">次へ →</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 語彙クイズ ================= -->
+<section id="quiz">
+  <h2>語彙クイズ（4択・10問） <span class="note" id="quizLvNote"></span></h2>
+  <div id="quizArea">
+    <div class="box" style="text-align:center">
+      <p>大問1（短文の語句空所補充）の得点源となる語彙を、意味の4択でテストします。</p>
+      <button class="btn primary" onclick="startQuiz()">クイズを開始する</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ライティング ================= -->
+<section id="writing">
+  <h2>要約問題の型</h2>
+  <div class="box red">
+    <ul class="tips">
+      <li><b>準1級：</b>約200語（3段落）→ 60〜70語。段落構成は「①施策の提示 → ②賛成・メリット → ③反対・デメリット」が定型です。</li>
+      <li><b>1級：</b>約300語 → 90〜110語。各段落の主張を抽出し、1段落＝1〜2文で再構成します。</li>
+      <li>本文の丸写しは減点対象。<b>自分の言葉でパラフレーズ</b>（具体語→抽象語への言い換え）が採点観点に含まれます。</li>
+      <li>接続語（However / In contrast / Moreover 等）で段落間の論理関係を明示すると「構成」の得点が安定します。</li>
+    </ul>
+  </div>
+
+  <h2>意見論述の構成テンプレート</h2>
+  <div class="box">
+    <p><b>Introduction</b>（主張の提示）→ <b>Body 1</b>（理由1＋具体化）→ <b>Body 2</b>（理由2＋具体化）→ <b>Conclusion</b>（主張の再提示）</p>
+    <p class="note">準1級は120〜150語・理由2つ（POINTSから選択）。1級は200〜240語・理由3つが標準です。序論と結論で同じ表現の反復を避け、言い換えることが「語彙」観点の得点につながります。</p>
+  </div>
+
+  <h3>使える論述表現</h3>
+  <div class="box">
+    <div class="phrase">
+      <div><span class="en">It is often argued that ...</span><br><span class="jp">〜だとしばしば論じられる（導入）</span></div>
+      <div><span class="en">From my perspective, ...</span><br><span class="jp">私の観点では（主張）</span></div>
+      <div><span class="en">The primary reason is that ...</span><br><span class="jp">第一の理由は（Body冒頭）</span></div>
+      <div><span class="en">A case in point is ...</span><br><span class="jp">好例として（具体化）</span></div>
+      <div><span class="en">Admittedly, ... However, ...</span><br><span class="jp">確かに〜だが、しかし（譲歩）</span></div>
+      <div><span class="en">This is largely attributable to ...</span><br><span class="jp">これは主に〜に起因する（因果）</span></div>
+      <div><span class="en">In light of these considerations, ...</span><br><span class="jp">以上を踏まえると（結論）</span></div>
+      <div><span class="en">The benefits far outweigh the drawbacks.</span><br><span class="jp">利点は欠点をはるかに上回る（結論）</span></div>
+    </div>
+  </div>
+
+  <h2>語数カウンター付き 練習エリア</h2>
+  <p>課題タイプを選ぶと目標語数の範囲内かどうかを自動判定します（データは送信されません）。</p>
+  <select id="wtask" onchange="countWords()">
+    <option value="65">準1級・要約（60〜70語）</option>
+    <option value="135">準1級・意見論述（120〜150語）</option>
+    <option value="100">1級・要約（90〜110語）</option>
+    <option value="220">1級・意見論述（200〜240語）</option>
+  </select>
+  <div style="margin-top:10px">
+    <textarea id="wtext" placeholder="ここに英文を入力してください。" oninput="countWords()"></textarea>
+    <div class="wc" id="wcount"><span class="num">0</span> words</div>
+  </div>
+</section>
+
+<!-- ================= 二次試験 ================= -->
+<section id="speaking">
+  <h2>二次試験（面接）の形式</h2>
+  <h3><span class="lvtag">準1級</span> 約8分</h3>
+  <table>
+    <tr><th>流れ</th><th>内容</th></tr>
+    <tr><td>1. 自由会話</td><td>簡単な質疑（挨拶・日常的話題）</td></tr>
+    <tr><td>2. ナレーション</td><td>4コマイラストの展開を<b>2分間</b>で説明（考慮時間1分）</td></tr>
+    <tr><td>3. Q&amp;A（4問）</td><td>イラスト関連1問＋カードのトピックに関する社会性のある質問3問</td></tr>
+  </table>
+  <ul class="tips">
+    <li>ナレーションは<b>過去形・過去進行形</b>で統一し、指定の書き出し文から始めます。</li>
+    <li>登場人物の動作だけでなく、表情・心情・吹き出しの内容まで言語化すると描写が安定します。</li>
+    <li>評価観点は「ナレーション・応答内容・語彙・文法・発音」に加え、態度（アティチュード）も含まれます。</li>
+  </ul>
+
+  <h3><span class="lvtag g1">1級</span> 約10分</h3>
+  <table>
+    <tr><th>流れ</th><th>内容</th></tr>
+    <tr><td>1. 自由会話</td><td>面接委員2名との簡単な会話</td></tr>
+    <tr><td>2. スピーチ</td><td>提示された5トピックから1つを選び、<b>1分の準備後、2分間</b>スピーチ</td></tr>
+    <tr><td>3. Q&amp;A</td><td>スピーチ内容とトピックに関する質疑応答（約4分）</td></tr>
+  </table>
+  <ul class="tips">
+    <li>トピックは社会・政治・環境・科学技術・倫理など時事的テーマが中心です。</li>
+    <li>2分＝約200〜250語。意見論述と同じ「主張→理由2つ→結論」の型をそのまま口頭に転用できます。</li>
+    <li>賛否が分かれるテーマでは、立場の一貫性が評価されます。準備段階で「即答できる持ちネタ」を10テーマ程度用意するのが定石です。</li>
+  </ul>
+
+  <h3>スピーチ練習トピック例（1級レベル）</h3>
+  <div class="box">
+    <ul class="tips" style="font-family:var(--en);font-size:14px">
+      <li>Should governments regulate the development of artificial intelligence?</li>
+      <li>Is globalization doing more harm than good to local cultures?</li>
+      <li>Can renewable energy realistically replace fossil fuels?</li>
+      <li>Should university education be free for all citizens?</li>
+      <li>Does social media strengthen or weaken democracy?</li>
+      <li>Is space exploration a worthwhile investment for humanity?</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= 学習記録 ================= -->
+<section id="progress">
+  <h2>学習記録</h2>
+  <p class="note">語彙クイズの結果はこの端末のブラウザに保存されます（サーバーには送信されません）。</p>
+  <div id="histArea"><div class="empty">まだ記録がありません。語彙クイズを解くとここに履歴が表示されます。</div></div>
+  <div style="margin-top:14px">
+    <button class="btn" onclick="clearHistory()">記録をすべて削除</button>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <a href="../">← Web Apps Archive</a><br>
+  本サイトは学習補助を目的とした非公式教材です。最新の試験情報は必ず日本英語検定協会の公式サイト（eiken.or.jp）でご確認ください。<br>
+  「英検」は公益財団法人 日本英語検定協会の登録商標です。
+</footer>
+
+<script>
+/* =========================================================
+   語彙データ（準1級48語 / 1級48語）
+========================================================= */
+const VOCAB = {
+p1:[
+["alleviate","v.","緩和する","alleviate poverty and hunger"],
+["advocate","v./n.","提唱する；擁護者","advocate for renewable energy"],
+["allocate","v.","割り当てる","allocate resources efficiently"],
+["anonymous","adj.","匿名の","an anonymous donation"],
+["coherent","adj.","首尾一貫した","a coherent argument"],
+["compelling","adj.","説得力のある","compelling evidence"],
+["comprise","v.","構成する","The committee comprises ten members."],
+["contemplate","v.","熟考する","contemplate a career change"],
+["curb","v.","抑制する","curb greenhouse gas emissions"],
+["deceive","v.","欺く","deceive consumers with false ads"],
+["deplete","v.","枯渇させる","deplete natural resources"],
+["deteriorate","v.","悪化する","Relations deteriorated rapidly."],
+["disperse","v.","分散させる","The crowd dispersed quietly."],
+["eligible","adj.","資格のある","eligible for a scholarship"],
+["endorse","v.","支持する・推奨する","endorse a political candidate"],
+["evoke","v.","呼び起こす","evoke childhood memories"],
+["feasible","adj.","実行可能な","a feasible plan"],
+["fluctuate","v.","変動する","Prices fluctuate seasonally."],
+["foster","v.","育成する・促進する","foster international cooperation"],
+["hinder","v.","妨げる","hinder economic growth"],
+["imperative","adj.","必須の・急務の","It is imperative to act now."],
+["implement","v.","実施する","implement a new policy"],
+["induce","v.","誘発する","induce behavioral change"],
+["inevitable","adj.","避けられない","an inevitable consequence"],
+["lucrative","adj.","儲かる","a lucrative business"],
+["mitigate","v.","軽減する","mitigate climate risks"],
+["notorious","adj.","悪名高い","notorious for heavy traffic"],
+["obsolete","adj.","時代遅れの","obsolete technology"],
+["offset","v.","相殺する","offset carbon emissions"],
+["plausible","adj.","もっともらしい","a plausible explanation"],
+["prevalent","adj.","蔓延している","a prevalent belief"],
+["provoke","v.","引き起こす・挑発する","provoke a strong reaction"],
+["prudent","adj.","慎重な","a prudent investment"],
+["redundant","adj.","余剰の・冗長な","redundant information"],
+["reluctant","adj.","気が進まない","reluctant to change"],
+["retain","v.","保持する","retain skilled workers"],
+["scrutinize","v.","精査する","scrutinize the data"],
+["subsidize","v.","助成する","subsidize public transport"],
+["substantial","adj.","かなりの","a substantial increase"],
+["susceptible","adj.","影響を受けやすい","susceptible to disease"],
+["tangible","adj.","有形の・明白な","tangible benefits"],
+["tedious","adj.","退屈な・単調な","a tedious task"],
+["thrive","v.","繁栄する","Small businesses thrive here."],
+["undermine","v.","弱体化させる","undermine public trust"],
+["versatile","adj.","多才な・万能の","a versatile musician"],
+["viable","adj.","実行可能な","a viable alternative"],
+["vulnerable","adj.","脆弱な","vulnerable populations"],
+["withstand","v.","耐える","withstand extreme heat"]
+],
+g1:[
+["aberration","n.","逸脱・異常","a statistical aberration"],
+["acquiesce","v.","黙認する・従う","acquiesce to the demands"],
+["admonish","v.","諭す・戒める","admonish him for being late"],
+["ameliorate","v.","改善する","ameliorate living conditions"],
+["belligerent","adj.","好戦的な","a belligerent tone"],
+["capitulate","v.","降伏する・屈する","capitulate to pressure"],
+["castigate","v.","酷評する・厳しく非難する","castigated by the press"],
+["clandestine","adj.","秘密の・内密の","a clandestine meeting"],
+["conflate","v.","混同する","conflate two distinct issues"],
+["conundrum","n.","難問","an ethical conundrum"],
+["debilitate","v.","衰弱させる","a debilitating illness"],
+["denounce","v.","公然と非難する","denounce the violence"],
+["disparage","v.","見くびる・けなす","disparage his achievements"],
+["egregious","adj.","甚だしい・実にひどい","an egregious error"],
+["ephemeral","adj.","儚い・短命の","ephemeral fame"],
+["exacerbate","v.","悪化させる","exacerbate the crisis"],
+["exonerate","v.","無罪にする・免責する","exonerated by new evidence"],
+["fastidious","adj.","凝り性の・細部にこだわる","fastidious about details"],
+["feign","v.","装う・ふりをする","feign ignorance"],
+["garner","v.","集める・獲得する","garner public support"],
+["gregarious","adj.","社交的な","a gregarious personality"],
+["harbinger","n.","前兆・先駆け","a harbinger of change"],
+["impeccable","adj.","非の打ち所がない","impeccable manners"],
+["incessant","adj.","絶え間ない","incessant rain"],
+["indigenous","adj.","先住の・固有の","indigenous communities"],
+["insinuate","v.","ほのめかす","insinuate that he lied"],
+["juxtapose","v.","並置する・対比する","juxtapose tradition and modernity"],
+["lucid","adj.","明晰な・わかりやすい","a lucid explanation"],
+["meticulous","adj.","細心の・几帳面な","meticulous research"],
+["nefarious","adj.","極悪な","nefarious activities"],
+["obfuscate","v.","曖昧にする・不明瞭にする","obfuscate the truth"],
+["ostentatious","adj.","派手な・見せびらかす","an ostentatious display of wealth"],
+["pernicious","adj.","有害な・悪質な","a pernicious influence"],
+["placate","v.","なだめる","placate angry customers"],
+["precarious","adj.","不安定な・危うい","a precarious situation"],
+["quintessential","adj.","典型的な・真髄の","the quintessential jazz album"],
+["recalcitrant","adj.","反抗的な・手に負えない","a recalcitrant student"],
+["relinquish","v.","放棄する・手放す","relinquish control"],
+["reprimand","v.","叱責する","officially reprimanded"],
+["sanguine","adj.","楽観的な","sanguine about the future"],
+["scrupulous","adj.","良心的な・入念な","scrupulous attention to detail"],
+["taciturn","adj.","無口な","a taciturn composer"],
+["tenacious","adj.","粘り強い","a tenacious negotiator"],
+["ubiquitous","adj.","遍在する・どこにでもある","Smartphones are ubiquitous."],
+["vehement","adj.","激しい・熱烈な","vehement opposition"],
+["vindicate","v.","正当性を立証する","vindicated by history"],
+["volatile","adj.","不安定な・変動しやすい","a volatile market"],
+["zealous","adj.","熱心な・熱狂的な","a zealous reformer"]
+]};
+
+/* ========================= 状態 ========================= */
+let level = "p1";
+let tab = "guide";
+let deck = [], cardIdx = 0;
+let quiz = null;
+let history_ = [];
+let storageOK = false;
+
+const LVNAME = {p1:"準1級", g1:"1級"};
+
+/* ========================= 級・タブ ========================= */
+function setLevel(lv){
+  level = lv;
+  document.getElementById("lvP1").classList.toggle("active", lv==="p1");
+  document.getElementById("lvG1").classList.toggle("active", lv==="g1");
+  document.documentElement.style.setProperty("--akapen", lv==="g1" ? "#b8912f" : "#c73e3a");
+  buildDeck(); renderCard();
+  document.getElementById("cardLvNote").textContent = "— " + LVNAME[lv] + "レベル " + VOCAB[lv].length + "語";
+  document.getElementById("quizLvNote").textContent = "— " + LVNAME[lv] + "レベル";
+  resetQuizUI();
+}
+function setTab(t){
+  tab = t;
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active", b.dataset.tab===t));
+  document.querySelectorAll("main section").forEach(s=>s.classList.toggle("show", s.id===t));
+}
+
+/* ========================= 単語カード ========================= */
+function buildDeck(){ deck = VOCAB[level].slice(); cardIdx = 0; }
+function shuffleCards(){
+  for(let i=deck.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[deck[i],deck[j]]=[deck[j],deck[i]];}
+  cardIdx = 0; renderCard();
+}
+function moveCard(d){
+  cardIdx = (cardIdx + d + deck.length) % deck.length;
+  renderCard();
+}
+function renderCard(){
+  const w = deck[cardIdx];
+  const el = document.getElementById("wcard");
+  el.classList.remove("flipped");
+  document.getElementById("cw").textContent = w[0];
+  document.getElementById("cp").textContent = w[1];
+  document.getElementById("cj").textContent = w[2];
+  document.getElementById("ce").textContent = w[3];
+  document.getElementById("ccount").textContent = (cardIdx+1) + " / " + deck.length;
+}
+document.addEventListener("DOMContentLoaded", ()=>{
+  const el = document.getElementById("wcard");
+  el.addEventListener("click", ()=>el.classList.toggle("flipped"));
+  el.addEventListener("keydown", e=>{
+    if(e.key===" "||e.key==="Enter"){e.preventDefault();el.classList.toggle("flipped");}
+  });
+  document.addEventListener("keydown", e=>{
+    if(tab!=="cards") return;
+    if(e.key==="ArrowLeft") moveCard(-1);
+    if(e.key==="ArrowRight") moveCard(1);
+  });
+  buildDeck(); renderCard();
+  document.getElementById("cardLvNote").textContent = "— 準1級レベル " + VOCAB.p1.length + "語";
+  document.getElementById("quizLvNote").textContent = "— 準1級レベル";
+  loadHistory();
+});
+
+/* ========================= クイズ ========================= */
+function resetQuizUI(){
+  quiz = null;
+  document.getElementById("quizArea").innerHTML =
+   '<div class="box" style="text-align:center"><p>大問1（短文の語句空所補充）の得点源となる語彙を、意味の4択でテストします。</p><button class="btn primary" onclick="startQuiz()">クイズを開始する</button></div>';
+}
+function startQuiz(){
+  const pool = VOCAB[level].slice();
+  for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+  const qs = pool.slice(0,10).map(w=>{
+    const wrong = pool.filter(x=>x[0]!==w[0]);
+    const opts = [w[2]];
+    while(opts.length<4){
+      const c = wrong[Math.floor(Math.random()*wrong.length)][2];
+      if(!opts.includes(c)) opts.push(c);
+    }
+    for(let i=opts.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[opts[i],opts[j]]=[opts[j],opts[i]];}
+    return {word:w[0], pos:w[1], ans:w[2], ex:w[3], opts};
+  });
+  quiz = {qs, idx:0, score:0, wrongList:[]};
+  renderQuestion();
+}
+function renderQuestion(){
+  const q = quiz.qs[quiz.idx];
+  const area = document.getElementById("quizArea");
+  area.innerHTML =
+    '<div class="qbox">' +
+      '<div class="qprog">Question ' + (quiz.idx+1) + ' / ' + quiz.qs.length + '　Score: ' + quiz.score + '</div>' +
+      '<div class="qword">' + q.word + ' <span style="font-size:.45em;color:var(--sub);font-style:italic">' + q.pos + '</span></div>' +
+      '<div class="opts">' + q.opts.map(o=>'<button onclick="answer(this)">'+o+'</button>').join('') + '</div>' +
+    '</div>';
+}
+function answer(btn){
+  const q = quiz.qs[quiz.idx];
+  const buttons = document.querySelectorAll(".opts button");
+  buttons.forEach(b=>{
+    b.disabled = true;
+    if(b.textContent === q.ans) b.classList.add("correct");
+  });
+  const box = document.querySelector(".qbox");
+  const mark = document.createElement("div");
+  mark.className = "mark";
+  if(btn.textContent === q.ans){
+    quiz.score++;
+    mark.textContent = "◯";
+  }else{
+    btn.classList.add("wrong");
+    mark.textContent = "✕";
+    quiz.wrongList.push(q);
+  }
+  box.appendChild(mark);
+  setTimeout(()=>{
+    quiz.idx++;
+    if(quiz.idx < quiz.qs.length) renderQuestion();
+    else finishQuiz();
+  }, 1100);
+}
+function finishQuiz(){
+  const s = quiz.score, t = quiz.qs.length;
+  let review = "";
+  if(quiz.wrongList.length){
+    review = '<div class="review"><h3>復習リスト</h3><ul>' +
+      quiz.wrongList.map(q=>'<li><span class="en">'+q.word+'</span> — '+q.ans+'（<span class="en" style="font-style:italic">'+q.ex+'</span>）</li>').join('') +
+      '</ul></div>';
+  }
+  document.getElementById("quizArea").innerHTML =
+    '<div class="qbox"><div class="result">' +
+      '<div class="big">' + s + ' / ' + t + '</div>' +
+      '<p>' + (s>=8 ? "本番の大問1でも通用する水準です。" : s>=5 ? "あと一歩です。復習リストを単語カードで確認してください。" : "語彙の底上げが優先課題です。単語カードから反復してください。") + '</p>' +
+      '<button class="btn primary" onclick="startQuiz()">もう一度</button> ' +
+      '<button class="btn" onclick="resetQuizUI()">終了</button>' +
+    '</div>' + review + '</div>';
+  saveResult(s, t);
+}
+
+/* ========================= 語数カウンター ========================= */
+const RANGES = {65:[60,70],135:[120,150],100:[90,110],220:[200,240]};
+function countWords(){
+  const txt = document.getElementById("wtext").value.trim();
+  const n = txt ? txt.split(/\s+/).length : 0;
+  const key = document.getElementById("wtask").value;
+  const [lo,hi] = RANGES[key];
+  const el = document.getElementById("wcount");
+  const inRange = n>=lo && n<=hi;
+  el.className = "wc " + (n===0 ? "" : inRange ? "in" : "out");
+  el.innerHTML = '<span class="num">'+n+'</span> words　（目標 '+lo+'〜'+hi+'語'+(n===0?"":inRange?"：範囲内":n<lo?"：あと"+(lo-n)+"語不足":"："+(n-hi)+"語超過")+'）';
+}
+
+/* ========================= 学習記録（localStorage） ========================= */
+const HKEY = "eiken-quiz-history";
+function loadHistory(){
+  try{ const v = localStorage.getItem(HKEY); if(v) history_ = JSON.parse(v); storageOK = true; }
+  catch(e){ storageOK = false; }
+  renderHistory();
+}
+function saveResult(score,total){
+  history_.unshift({d:new Date().toISOString().slice(0,10), lv:LVNAME[level], s:score, t:total});
+  history_ = history_.slice(0,50);
+  renderHistory();
+  if(storageOK){ try{ localStorage.setItem(HKEY, JSON.stringify(history_)); }catch(e){} }
+}
+function clearHistory(){
+  if(!confirm("学習記録をすべて削除しますか？")) return;
+  history_ = [];
+  renderHistory();
+  try{ localStorage.removeItem(HKEY); }catch(e){}
+}
+function renderHistory(){
+  const area = document.getElementById("histArea");
+  if(!history_.length){
+    area.innerHTML = '<div class="empty">まだ記録がありません。語彙クイズを解くとここに履歴が表示されます。</div>';
+    return;
+  }
+  area.innerHTML = '<table class="hist"><tr><th>日付</th><th>級</th><th>結果</th><th>正答率</th></tr>' +
+    history_.map(h=>'<tr><td>'+h.d+'</td><td>'+h.lv+'</td><td class="score">'+h.s+' / '+h.t+'</td><td>'+Math.round(h.s/h.t*100)+'%</td></tr>').join('') +
+    '</table>';
+}
+
+/* ========================= PWA ========================= */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>

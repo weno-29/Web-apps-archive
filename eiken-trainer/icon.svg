@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1c2b3a"/>
+  <rect x="96" y="120" width="320" height="272" rx="20" fill="#fffdf8"/>
+  <circle cx="132" cy="156" r="16" fill="#1c2b3a"/>
+  <text x="256" y="300" text-anchor="middle" font-family="Georgia,serif" font-size="150" font-style="italic" fill="#1c2b3a">E</text>
+  <circle cx="352" cy="318" r="54" fill="none" stroke="#c73e3a" stroke-width="14" transform="rotate(-8 352 318)"/>
+</svg>
